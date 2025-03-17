@@ -1,0 +1,29 @@
+input {
+  width: 30px;
+}
+
+tbody > tr {
+  td {
+    text-align: center;
+    align-content: center;
+  }
+
+  .plus {
+    background-color: rgba(0, 255, 0, 0.5);
+  }
+
+  .minus {
+    background-color: rgba(255, 0, 0, 0.5);
+  }
+
+  :nth-child(2) {
+    /* background-color: red; */
+  }
+  :nth-child(3) {
+    /* background-color: green; */
+  }
+  :nth-child(4) {
+    /* background-color: blue; */
+    min-width: 47px;
+  }
+}
