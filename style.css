@@ -26,6 +26,10 @@ tbody > tr {
     /* background-color: blue; */
     min-width: 47px;
   }
+
+  td[name="numbers1"], td[name="numbers2"] {
+    white-space: nowrap;
+  }
 }
 
 input::-webkit-outer-spin-button,
