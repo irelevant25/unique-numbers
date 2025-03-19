@@ -55,7 +55,10 @@ function renderRow() {
     const symbolCell = document.createElement('td');
     const input = document.createElement('input');
     input.setAttribute('data-index', index);
-    // input.setAttribute('type', 'number');
+    input.setAttribute('type', 'text');
+    input.setAttribute('step', 1);
+    input.setAttribute('pattern', '[0-9]+');
+    input.setAttribute('inputmode', 'numeric');
     input.setAttribute('min', minNumber);
     input.setAttribute('max', maxNumber);
     // input.setAttribute('value', number);
@@ -81,7 +84,7 @@ function renderRow() {
     });
     input.addEventListener('input', () => {
         const value = input.value;
-        if (value < minNumber || value > maxNumber || isNaN(value)) {
+        if (value < minNumber || value > maxNumber || isNaN(value) || value === 'e') {
             input.value = '';
         }
     });
