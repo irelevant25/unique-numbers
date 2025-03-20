@@ -67,6 +67,70 @@ function recalculateTNumbers() {
             }
         }
     });
+    generatePairing();
+}
+
+function generatePairing(firstCol = true) {
+    let elements;
+    if (firstCol) elements = Array.from(document.querySelectorAll('[name="numbersNote1"]')).filter(x => x.textContent !== '');
+    else elements = Array.from(document.querySelectorAll('[name="numbersNote2"]')).filter(x => x.textContent !== '');
+
+    elements.forEach(element => {
+        element.classList.remove('plus');
+        element.classList.remove('minus');
+    });
+
+    let startIndex = firstCol ? 0 : 1;
+    pairs = [];
+    for (let i = startIndex; i < elements.length; i += 4) {
+        if (elements.length <= i + 1) break;
+        pairs.push(elements[i]);
+        pairs.push(elements[i + 1]);
+    }
+    if (pairs.length < 4) {
+        if (firstCol) generatePairing(false);
+        return;
+    }
+
+    let element1 = pairs[pairs.length - 4];
+    let element2 = pairs[pairs.length - 3];
+    let element3 = pairs[pairs.length - 2];
+    let element4 = pairs[pairs.length - 1];
+
+    if (element1.textContent === element3.textContent && element2.textContent === element4.textContent) {
+        element1.classList.add(element1.textContent === '+' ? 'plus' : 'minus');
+        element2.classList.add(element2.textContent === '+' ? 'plus' : 'minus');
+        element3.classList.add(element3.textContent === '+' ? 'plus' : 'minus');
+        element4.classList.add(element4.textContent === '+' ? 'plus' : 'minus');
+    }
+    else {
+        if (firstCol) generatePairing(false);
+        return;
+    }
+
+    pairs = [];
+    for (let i = startIndex + 2; i < elements.length; i += 4) {
+        if (elements.length <= i + 1) break;
+        pairs.push(elements[i]);
+        pairs.push(elements[i + 1]);
+    }
+    if (pairs.length < 4) {
+        if (firstCol) generatePairing(false);
+        return;
+    }
+
+    element1 = pairs[pairs.length - 4];
+    element2 = pairs[pairs.length - 3];
+    element3 = pairs[pairs.length - 2];
+    element4 = pairs[pairs.length - 1];
+
+    if (element1.textContent === element3.textContent && element2.textContent === element4.textContent || element1.textContent !== element3.textContent && element2.textContent !== element4.textContent) {
+        element1.classList.add(element1.textContent === '+' ? 'plus' : 'minus');
+        element2.classList.add(element2.textContent === '+' ? 'plus' : 'minus');
+        element3.classList.add(element3.textContent === '+' ? 'plus' : 'minus');
+        element4.classList.add(element4.textContent === '+' ? 'plus' : 'minus');
+    }
+    if (firstCol) generatePairing(false);
 }
 
 function isValidNumber(value, minNumber, maxNumber) {
@@ -117,7 +181,7 @@ function renderRow(initNumber) {
 
 function generateNumber() {
     document.querySelectorAll('tbody > tr').forEach(row => row.remove());
-    for (let i = 0; i < 50; i++) {
+    for (let i = 0; i < 20; i++) {
         renderRow(getRandomInt(0, 36));
     }
     recalculateTNumbers();
