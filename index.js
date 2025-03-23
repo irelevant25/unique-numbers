@@ -196,7 +196,8 @@ function renderRow(initNumber) {
             if (index === document.querySelectorAll('input').length - 1) nextInput = renderRow();
             else nextInput = document.querySelectorAll('input')[index + 1];
             nextInput.focus();
-            nextInput.scrollIntoView();
+            const scrollToElement = document.querySelectorAll('input')[document.querySelectorAll('input').length - 5];
+            scrollToElement?.scrollIntoView();
         }
     });
     input.addEventListener('input', () => {
