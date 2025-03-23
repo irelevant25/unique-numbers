@@ -8,12 +8,34 @@ tbody > tr {
     align-content: center;
   }
 
+  .top-number  {
+    border: 2px solid;
+    border-bottom: 0;
+    border-color: black;
+  }
+
+  .bottom-number {
+    border: 2px solid;
+    border-top: 0;
+    border-color: black;
+  }
+
   .plus {
     background-color: rgba(0, 255, 0, 0.5);
   }
 
   .minus {
     background-color: rgba(255, 0, 0, 0.5);
+  }
+
+  .blue {
+    color: white;
+    background-color: rgba(0, 0, 255, 0.5);
+  }
+
+  .gray {
+    color: white;
+    background-color: rgba(128, 128, 128, 0.5);
   }
 
   :nth-child(2) {

@@ -41,31 +41,53 @@ function recalculateTNumbers() {
         const tnumber = transformNumber(number);
         tNumberCell.textContent = tnumber;
         const uniqueNumbers = previousUniqueNumbers(index);
-        if (uniqueNumbers && tnumber !== 0) {
+        if (uniqueNumbers) {
             const isIncludes = uniqueNumbers.includes(tnumber);
-            symbolCell.textContent = isIncludes ? '-' : '+';
+            symbolCell.textContent = tnumber === 0 ? '0' : isIncludes ? '-' : '+';
             numbersNote1.textContent = symbolCell.textContent;
             numbersNote2.textContent = symbolCell.textContent;
+            numbersNote1.classList.className = '';
+            numbersNote2.classList.className = '';
+            if (numbersNote1.textContent !== '') numbersNote1.classList.add('has-value');
+            if (numbersNote2.textContent !== '') numbersNote2.classList.add('has-value');
             symbolCell.classList.remove('plus');
             symbolCell.classList.remove('minus');
-            if (isIncludes) symbolCell.classList.add('minus');
-            else symbolCell.classList.add('plus');
+            if (symbolCell.textContent === '-') symbolCell.classList.add('minus');
+            else if (symbolCell.textContent === '+') symbolCell.classList.add('plus');
         }
 
         if (!renderedUniqueNumbers && (index === rows.length - 1 || numberCell.value === '')) {
             document.querySelectorAll('[name="numbers1"]').forEach(td => td.textContent = '');
             document.querySelectorAll('[name="numbers2"]').forEach(td => td.textContent = '');
             renderedUniqueNumbers = true;
-            const rowIndex = index === rows.length - 1 ? index : numberCell.getAttribute('data-index');
+            const rowIndex = index === rows.length - 1 ? index : Number(row.querySelector('td[name="length"]').textContent) - 1;
             const row = document.querySelectorAll('tbody > tr')[rowIndex];
             if (row) {
                 const numbers1 = row.querySelector('[name="numbers1"]');
                 const numbers2 = row.querySelector('[name="numbers2"]');
-                const uniqueNumbers = previousUniqueNumbers(index);
+                const uniqueNumbers = previousUniqueNumbers(index + 1);
                 numbers1.textContent = uniqueNumbers?.sort((a, b) => a - b).join(', ');
                 numbers2.textContent = previousUniqueNumbersComplement(uniqueNumbers)?.sort((a, b) => a - b).join(', ');
             }
         }
+    });
+    const numbersNote1WithValueElements = document.querySelectorAll('td[name="numbersNote1"].has-value');
+    numbersNote1WithValueElements.forEach((element, index) => {
+        if (index === numbersNote1WithValueElements.length - 1 && index % 2 === 0) return;
+        if (index % 4 !== 0 && index % 4 !== 1) return;
+        element.classList.remove('top-number');
+        element.classList.remove('bottom-number');
+        if (index % 2 === 0) element.classList.add('top-number');
+        else element.classList.add('bottom-number');
+    });
+    const numbersNote2WithValueElements = document.querySelectorAll('td[name="numbersNote2"].has-value');
+    numbersNote2WithValueElements.forEach((element, index) => {
+        if (index === 0 || index === numbersNote2WithValueElements.length - 1 && index % 2 !== 0) return;
+        if (index % 4 !== 1 && index % 4 !== 2) return;
+        element.classList.remove('top-number');
+        element.classList.remove('bottom-number');
+        if (index % 2 === 0) element.classList.add('bottom-number');
+        else element.classList.add('top-number');
     });
     generatePairing();
 }
@@ -97,13 +119,15 @@ function generatePairing(firstCol = true) {
     let element3 = pairs[pairs.length - 2];
     let element4 = pairs[pairs.length - 1];
 
-    if (element1.textContent === element3.textContent && element2.textContent === element4.textContent) {
-        element1.classList.add(element1.textContent === '+' ? 'plus' : 'minus');
-        element2.classList.add(element2.textContent === '+' ? 'plus' : 'minus');
-        element3.classList.add(element3.textContent === '+' ? 'plus' : 'minus');
-        element4.classList.add(element4.textContent === '+' ? 'plus' : 'minus');
+    if ((element1.textContent === element3.textContent || element1.textContent === '0' || element3.textContent === '0') &&
+        (element2.textContent === element4.textContent || element2.textContent === '0' || element4.textContent === '0')) {
+        element1.classList.add('blue');
+        element2.classList.add('blue');
+        element3.classList.add('blue');
+        element4.classList.add('blue');
     }
     else {
+        console.log(`A: element1: ${element1.textContent}, element2: ${element2.textContent}, element3: ${element3.textContent}, element4: ${element4.textContent}`);
         if (firstCol) generatePairing(false);
         return;
     }
@@ -124,13 +148,19 @@ function generatePairing(firstCol = true) {
     element3 = pairs[pairs.length - 2];
     element4 = pairs[pairs.length - 1];
 
-    if (element1.textContent === element3.textContent && element2.textContent === element4.textContent || element1.textContent !== element3.textContent && element2.textContent !== element4.textContent) {
-        element1.classList.add(element1.textContent === '+' ? 'plus' : 'minus');
-        element2.classList.add(element2.textContent === '+' ? 'plus' : 'minus');
-        element3.classList.add(element3.textContent === '+' ? 'plus' : 'minus');
-        element4.classList.add(element4.textContent === '+' ? 'plus' : 'minus');
+    if ((element1.textContent === element3.textContent || element1.textContent === '0' || element3.textContent === '0') &&
+        (element2.textContent === element4.textContent || element2.textContent === '0' || element4.textContent === '0') ||
+        element1.textContent !== element3.textContent && element2.textContent !== element4.textContent) {
+        element1.classList.add('gray');
+        element2.classList.add('gray');
+        element3.classList.add('gray');
+        element4.classList.add('gray');
     }
-    if (firstCol) generatePairing(false);
+    if (firstCol) {
+        console.log(`B: element1: ${element1.textContent}, element2: ${element2.textContent}, element3: ${element3.textContent}, element4: ${element4.textContent}`);
+        generatePairing(false);
+        return;
+    }
 }
 
 function isValidNumber(value, minNumber, maxNumber) {
@@ -145,7 +175,7 @@ function renderRow(initNumber) {
     const rowHtml = `
         <tr>
             <td name="numbers1"></td>
-            <td>${index + 1}.</td>
+            <td name="length">${index + 1}.</td>
             <td><input type="text" step="1" pattern="[0-9]+" inputmode="numeric" min="0" max="36" value="${initNumber ?? ''}"></td>
             <td name="tnumber"></td>
             <td name="symbol"></td>
@@ -181,7 +211,9 @@ function renderRow(initNumber) {
 
 function generateNumber() {
     document.querySelectorAll('tbody > tr').forEach(row => row.remove());
-    for (let i = 0; i < 20; i++) {
+    // const testData = [32, 18, 13, 13, 14, 1, 24, 25, 12, 3, 6, 8, 24, 26, 31, 32, 29, 6, 0, 28];
+    // testData.forEach((number, index) => renderRow(number));
+    for (let i = 0; i < 25; i++) {
         renderRow(getRandomInt(0, 36));
     }
     recalculateTNumbers();
