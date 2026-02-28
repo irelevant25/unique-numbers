@@ -2,13 +2,17 @@ input {
   width: 30px;
 }
 
+.table > :not(caption) > * > * {
+  padding: 0.4rem 0.4rem;
+}
+
 tbody > tr {
   td {
     text-align: center;
     align-content: center;
   }
 
-  .top-number  {
+  .top-number {
     border: 2px solid;
     border-bottom: 0;
     border-color: black;
@@ -46,11 +50,22 @@ tbody > tr {
   }
   :nth-child(4) {
     /* background-color: blue; */
-    min-width: 47px;
+    /* min-width: 47px; */
   }
 
-  td[name="numbers1"], td[name="numbers2"] {
+  span[name="numbers1"],
+  span[name="numbers2"] {
     white-space: nowrap;
+    font-size: 15px;
+  }
+
+  span[name="numbers1-poznamka"],
+  span[name="numbers2-poznamka"] {
+    position: absolute;
+    top: -10px;
+    font-size: 11px;
+    left: 50%;
+    transform: translateX(-50%);
   }
 }
 
@@ -66,8 +81,16 @@ input[type="number"] {
 }
 
 input {
-    border: 1px solid black;
-    /* border-radius: 5px; */
-    background-color: white;
-    color: black;
-  }
+  border: 1px solid black;
+  /* border-radius: 5px; */
+  background-color: white;
+  color: black;
+}
+
+.relative {
+  position: relative;
+}
+
+.absolute {
+  position: absolute;
+}

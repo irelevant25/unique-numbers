@@ -63,6 +63,11 @@ function recalculateTNumbers() {
             const rowIndex = index === rows.length - 1 ? index : Number(row.querySelector('td[name="length"]').textContent) - 1;
             const row = document.querySelectorAll('tbody > tr')[rowIndex];
             if (row) {
+                const numbers1Poznamka = row.querySelector('[name="numbers1-poznamka"]');
+                numbers1Poznamka.textContent = 'staré';
+                const numbers2Poznamka = row.querySelector('[name="numbers2-poznamka"]');
+                numbers2Poznamka.textContent = 'nové';
+
                 const numbers1 = row.querySelector('[name="numbers1"]');
                 const numbers2 = row.querySelector('[name="numbers2"]');
                 const uniqueNumbers = previousUniqueNumbers(index + 1);
@@ -92,74 +97,47 @@ function recalculateTNumbers() {
     generatePairing();
 }
 
-function generatePairing(firstCol = true) {
-    let elements;
-    if (firstCol) elements = Array.from(document.querySelectorAll('[name="numbersNote1"]')).filter(x => x.textContent !== '');
-    else elements = Array.from(document.querySelectorAll('[name="numbersNote2"]')).filter(x => x.textContent !== '');
+function generatePairing() {
+    let leftElements = Array.from(document.querySelectorAll('[name="numbersNote1"]')).filter(x => x.textContent !== '');
+    let rightElements = Array.from(document.querySelectorAll('[name="numbersNote2"]')).filter(x => x.textContent !== '');
 
-    elements.forEach(element => {
-        element.classList.remove('plus');
-        element.classList.remove('minus');
-    });
-
-    let startIndex = firstCol ? 0 : 1;
-    pairs = [];
-    for (let i = startIndex; i < elements.length; i += 4) {
-        if (elements.length <= i + 1) break;
-        pairs.push(elements[i]);
-        pairs.push(elements[i + 1]);
-    }
-    if (pairs.length < 4) {
-        if (firstCol) generatePairing(false);
+    // if not enough elements in any of col => return
+    if (leftElements.length < 6 || rightElements.length < 6) {
         return;
     }
 
-    let element1 = pairs[pairs.length - 4];
-    let element2 = pairs[pairs.length - 3];
-    let element3 = pairs[pairs.length - 2];
-    let element4 = pairs[pairs.length - 1];
-
-    if ((element1.textContent === element3.textContent || element1.textContent === '0' || element3.textContent === '0') &&
-        (element2.textContent === element4.textContent || element2.textContent === '0' || element4.textContent === '0')) {
-        element1.classList.add('blue');
-        element2.classList.add('blue');
-        element3.classList.add('blue');
-        element4.classList.add('blue');
-    }
-    else {
-        console.log(`A: element1: ${element1.textContent}, element2: ${element2.textContent}, element3: ${element3.textContent}, element4: ${element4.textContent}`);
-        if (firstCol) generatePairing(false);
-        return;
-    }
-
-    pairs = [];
-    for (let i = startIndex + 2; i < elements.length; i += 4) {
-        if (elements.length <= i + 1) break;
-        pairs.push(elements[i]);
-        pairs.push(elements[i + 1]);
-    }
-    if (pairs.length < 4) {
-        if (firstCol) generatePairing(false);
-        return;
+    // left col pairing
+    for (let i = 0; i < leftElements.length; i += 4) {
+        const [e1, e2, e3, e4, e5, e6, e7, e8] = leftElements.slice(i, i + 8);
+        // 1-2 => 5-6
+        if (!e1 || !e2 || !e5 || !e6) continue;
+        if ((e1.textContent === e5.textContent || e1.textContent === '0' || e5.textContent === '0') &&
+            (e2.textContent === e6.textContent || e2.textContent === '0' || e6.textContent === '0')) {
+            [e1, e2, e5, e6].forEach(element => element.classList.add('blue'));
+        }
+        // 3-4 => 7-8
+        if (!e3 || !e4 || !e7 || !e8) continue;
+        if ((e3.textContent === e7.textContent || e3.textContent === '0' || e7.textContent === '0') &&
+            (e4.textContent === e8.textContent || e4.textContent === '0' || e8.textContent === '0')) {
+            [e3, e4, e7, e8].forEach(element => element.classList.add('gray'));
+        }
     }
 
-    element1 = pairs[pairs.length - 4];
-    element2 = pairs[pairs.length - 3];
-    element3 = pairs[pairs.length - 2];
-    element4 = pairs[pairs.length - 1];
-
-    if ((element1.textContent === element3.textContent || element1.textContent === '0' || element3.textContent === '0') &&
-        (element2.textContent === element4.textContent || element2.textContent === '0' || element4.textContent === '0') ||
-        element1.textContent !== element3.textContent && element2.textContent !== element4.textContent) {
-        element1.classList.add('gray');
-        element2.classList.add('gray');
-        element3.classList.add('gray');
-        element4.classList.add('gray');
-    }
-    if (firstCol) {
-        console.log(`B: element1: ${element1.textContent}, element2: ${element2.textContent}, element3: ${element3.textContent}, element4: ${element4.textContent}`);
-        generatePairing(false);
-        return;
+    // right col pairing (starting from 1 - posunute o jeden riadok)
+    for (let i = 1; i < rightElements.length; i += 4) {
+        const [e1, e2, e3, e4, e5, e6, e7, e8] = rightElements.slice(i, i + 8);
+        // 1-2 => 5-6
+        if (!e1 || !e2 || !e5 || !e6) continue;
+        if ((e1.textContent === e5.textContent || e1.textContent === '0' || e5.textContent === '0') &&
+            (e2.textContent === e6.textContent || e2.textContent === '0' || e6.textContent === '0')) {
+            [e1, e2, e5, e6].forEach(element => element.classList.add('blue'));
+        }
+        // 3-4 => 7-8
+        if (!e3 || !e4 || !e7 || !e8) continue;
+        if ((e3.textContent === e7.textContent || e3.textContent === '0' || e7.textContent === '0') &&
+            (e4.textContent === e8.textContent || e4.textContent === '0' || e8.textContent === '0')) {
+            [e3, e4, e7, e8].forEach(element => element.classList.add('gray'));
+        }
     }
 }
 
@@ -174,12 +152,22 @@ function renderRow(initNumber) {
     const tbody = document.querySelector('tbody');
     const rowHtml = `
         <tr>
-            <td name="numbers1"></td>
+            <td name="numbers1-container">
+                <div class="relative">
+                    <span class="absolute" name="numbers1-poznamka"></span>
+                    <span name="numbers1"></span>
+                </div>
+            </td>
             <td name="length">${index + 1}.</td>
             <td><input type="text" step="1" pattern="[0-9]+" inputmode="numeric" min="0" max="36" value="${initNumber ?? ''}"></td>
             <td name="tnumber"></td>
             <td name="symbol"></td>
-            <td name="numbers2"></td>
+            <td name="numbers2-container">
+                <div class="relative">
+                    <span class="absolute" name="numbers2-poznamka"></span>
+                    <span name="numbers2"></span>
+                </div>
+            </td>
             <td name="numbersNote1"></td>
             <td name="numbersNote2"></td>
         </tr>
