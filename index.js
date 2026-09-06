@@ -12,6 +12,7 @@ const BATCH_SIZE = 25;
 const ALL_UNIQUE_NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 const DRAFT_KEY = 'unique-numbers:draft';
 const DENSITY_KEY = 'unique-numbers:density';
+const SOUND_KEY = 'unique-numbers:sound';
 const UNTITLED = 'Séria bez názvu';
 
 const tbody = document.querySelector('tbody');
@@ -78,7 +79,11 @@ function clearDerivedState() {
     });
 }
 
-function recalculateTNumbers() {
+/**
+ * @param {{silent?: boolean}} [options] silent skips the beep, for bulk renders
+ *        (loading, generating, clearing) where the pairs are not news.
+ */
+function recalculateTNumbers({ silent = false } = {}) {
     clearDerivedState();
 
     let renderedUniqueNumbers = false;
@@ -142,7 +147,7 @@ function recalculateTNumbers() {
         else element.classList.add('top-number');
     });
 
-    generatePairing();
+    announceRepeats(generatePairing(), silent);
     saveDraft();
 }
 
@@ -150,32 +155,61 @@ function samePair(a, b) {
     return a.textContent === b.textContent || a.textContent === '0' || b.textContent === '0';
 }
 
+/** @returns {{at: number, color: string}[]} the groups it coloured, in order. */
 function markPairs(elements, startIndex) {
+    const marked = [];
+
     for (let i = startIndex; i < elements.length; i += 4) {
         const [e1, e2, e3, e4, e5, e6, e7, e8] = elements.slice(i, i + 8);
         // 1-2 => 5-6
         if (!e1 || !e2 || !e5 || !e6) continue;
         if (samePair(e1, e5) && samePair(e2, e6)) {
             [e1, e2, e5, e6].forEach(element => element.classList.add('blue'));
+            marked.push({ at: i, color: 'blue' });
         }
         // 3-4 => 7-8
         if (!e3 || !e4 || !e7 || !e8) continue;
         if (samePair(e3, e7) && samePair(e4, e8)) {
             [e3, e4, e7, e8].forEach(element => element.classList.add('gray'));
+            marked.push({ at: i + 2, color: 'gray' });
         }
     }
+
+    return marked;
 }
 
+/**
+ * Groups chain: each one shares its last two cells with the next. Two in a row
+ * of the same colour is therefore a single longer run of that colour - the
+ * "second pair of the same colour" the beep announces.
+ *
+ * @returns {string[]} one id per repeat, stable while earlier rows do not change.
+ */
+function sameColourRepeats(marked, column) {
+    const repeats = [];
+
+    for (let i = 1; i < marked.length; i++) {
+        if (marked[i].color === marked[i - 1].color) {
+            repeats.push(`${column}:${marked[i].color}:${marked[i].at}`);
+        }
+    }
+
+    return repeats;
+}
+
+/** @returns {string[]} ids of every same-colour repeat currently on the sheet. */
 function generatePairing() {
     const leftElements = Array.from(document.querySelectorAll('[name="numbersNote1"]')).filter(x => x.textContent !== '');
     const rightElements = Array.from(document.querySelectorAll('[name="numbersNote2"]')).filter(x => x.textContent !== '');
 
     // if not enough elements in any of col => return
-    if (leftElements.length < UNIQUE_COUNT || rightElements.length < UNIQUE_COUNT) return;
+    if (leftElements.length < UNIQUE_COUNT || rightElements.length < UNIQUE_COUNT) return [];
 
-    markPairs(leftElements, 0);
+    const left = markPairs(leftElements, 0);
     // right col is shifted by one row (posunute o jeden riadok)
-    markPairs(rightElements, 1);
+    const right = markPairs(rightElements, 1);
+
+    return [...sameColourRepeats(left, 'L'), ...sameColourRepeats(right, 'R')];
 }
 
 /* ------------------------------------------------------------------ *
@@ -243,7 +277,7 @@ function renderRows(numbers) {
     numbers.forEach(number => renderRow(number ?? undefined));
     // recalculate first: the unique-number sets belong on the last filled row,
     // exactly where they land when the rows are typed in one at a time
-    recalculateTNumbers();
+    recalculateTNumbers({ silent: true });
     renderRow();
 }
 
@@ -441,6 +475,59 @@ function readDraft() {
 }
 
 /* ------------------------------------------------------------------ *
+ * Sound: a beep when a second pair of the same colour is marked
+ * ------------------------------------------------------------------ */
+
+let soundOn = true;
+let audioContext = null;
+/** Repeats already announced, so an existing one never beeps twice. */
+let knownRepeats = new Set();
+
+function beep({ frequency = 880, seconds = 0.16 } = {}) {
+    if (!soundOn) return;
+
+    const Ctor = window.AudioContext || window.webkitAudioContext;
+    if (!Ctor) return;
+
+    try {
+        audioContext ??= new Ctor();
+        // browsers keep the context suspended until a gesture; Enter is one
+        if (audioContext.state === 'suspended') audioContext.resume();
+
+        const now = audioContext.currentTime;
+        const oscillator = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+
+        oscillator.type = 'sine';
+        oscillator.frequency.value = frequency;
+
+        // ramp in and out, otherwise the tone starts and ends with a click
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.exponentialRampToValueAtTime(0.22, now + 0.012);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + seconds);
+
+        oscillator.connect(gain).connect(audioContext.destination);
+        oscillator.start(now);
+        oscillator.stop(now + seconds);
+    } catch { /* no audio available - the sheet still works */ }
+}
+
+/** Beeps once when repeats appear that were not on the sheet before. */
+function announceRepeats(repeats, silent) {
+    const current = new Set(repeats);
+    const isNew = repeats.some(id => !knownRepeats.has(id));
+    knownRepeats = current;
+
+    if (isNew && !silent) beep();
+}
+
+function toggleSound(force) {
+    soundOn = force ?? !soundOn;
+    $('[data-action="sound"]').setAttribute('aria-pressed', String(soundOn));
+    try { localStorage.setItem(SOUND_KEY, soundOn ? 'on' : 'off'); } catch { /* ignore */ }
+}
+
+/* ------------------------------------------------------------------ *
  * Chrome: toast, printing, density
  * ------------------------------------------------------------------ */
 
@@ -477,6 +564,11 @@ const actions = {
     'new-session': newSession,
     print: () => { syncPrintMirrors(); window.print(); },
     density: () => toggleDensity(),
+    sound: () => {
+        toggleSound();
+        toast(soundOn ? 'Zvuk zapnutý.' : 'Zvuk vypnutý.');
+        if (soundOn) beep();
+    },
 };
 
 /* ------------------------------------------------------------------ *
@@ -505,8 +597,13 @@ document.addEventListener('input', (event) => {
 window.addEventListener('beforeprint', syncPrintMirrors);
 
 let storedDensity = null;
-try { storedDensity = localStorage.getItem(DENSITY_KEY); } catch { /* ignore */ }
+let storedSound = null;
+try {
+    storedDensity = localStorage.getItem(DENSITY_KEY);
+    storedSound = localStorage.getItem(SOUND_KEY);
+} catch { /* ignore */ }
 toggleDensity(storedDensity === 'roomy');
+toggleSound(storedSound !== 'off');
 
 renderSessionList(boot.sessions ?? []);
 

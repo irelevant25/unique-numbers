@@ -48,6 +48,17 @@ farby `+`/`−` aj rámčeky dvojíc zostávajú zachované. Dlhšie zoznamy pok
 ďalších stranách so zopakovanou hlavičkou. Na jednu stranu A4 sa zmestí
 približne 40 riadkov.
 
+## Zvuk
+
+Farebné dvojice sa reťazia – každá zdieľa posledné dve bunky s nasledujúcou.
+Keď sa hneď za dvojicou objaví ďalšia **rovnakej farby**, vznikne dlhší
+súvislý pás a aplikácia **pípne**.
+
+Pípne len pri novej dvojici, ktorá vznikla práve zadaným číslom. Načítanie
+uloženej série ani tlačidlo Generovať nepípajú, aj keď séria také dvojice
+obsahuje. Tlačidlo `♪` zvuk vypína a zapína; voľba sa pamätá pre daný
+prehliadač.
+
 ## Rozloženie
 
 Tlačidlo `↕` prepína medzi predvolenými kompaktnými riadkami a redšími; voľba sa

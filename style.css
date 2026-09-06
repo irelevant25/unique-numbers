@@ -211,6 +211,12 @@ body {
   border-color: #b9c7dc;
 }
 
+/* a toggle that is off reads as switched off, not merely unhighlighted */
+.btn--icon[data-action="sound"][aria-pressed="false"] {
+  color: var(--faint);
+  text-decoration: line-through;
+}
+
 .btn--danger:hover {
   background: var(--minus-bg);
   border-color: #e5b3ad;
@@ -576,6 +582,14 @@ td[name="numbersNote2"].has-value {
 
 .toast--error {
   background: #932218;
+}
+
+/* On the narrowest phones the four action buttons are ~23px too wide for a
+   single row; a little less padding keeps them on one line. */
+@media (max-width: 340px) {
+  .bar__group--actions .btn {
+    padding: 5px 7px;
+  }
 }
 
 /* ------------------------------------------------------------------

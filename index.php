@@ -53,6 +53,8 @@ function defaultSeriesName(): string
                        placeholder="Bez názvu" value="<?= e($initial ? (string) $initial['name'] : defaultSeriesName()) ?>">
             </label>
             <button type="button" class="btn btn--primary" data-action="save">Uložiť</button>
+            <button type="button" class="btn btn--icon" data-action="sound" title="Pípnutie pri druhej dvojici rovnakej farby" aria-pressed="true">&#9834;</button>
+            <button type="button" class="btn btn--icon" data-action="density" title="Prepnúť hustotu riadkov" aria-pressed="false">&#8597;</button>
         </div>
 
         <span id="sessionMeta" class="bar__meta"><?= $initial ? e(shortDate($initial['updatedAt'] ?? null)) : 'neuložené' ?></span>
@@ -62,7 +64,6 @@ function defaultSeriesName(): string
             <button type="button" class="btn" data-action="clear">Vyčistiť</button>
             <button type="button" class="btn" data-action="open">Otvoriť<span id="sessionCount" class="badge"><?= count($sessions) ?></span></button>
             <button type="button" class="btn" data-action="print">Tlačiť</button>
-            <button type="button" class="btn btn--icon" data-action="density" title="Prepnúť hustotu riadkov" aria-pressed="false">&#8597;</button>
         </div>
     </header>
 
