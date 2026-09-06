@@ -1,96 +1,811 @@
-input {
-  width: 30px;
+/* ==================================================================
+   Unikátne čísla - compact sheet
+
+   Mobile first: the base rules target a phone, and the min-width
+   block near the bottom widens things out for tablets and desktops.
+   ================================================================== */
+
+:root {
+  --canvas: #eceef1;
+  --surface: #ffffff;
+  --ink: #14181d;
+  --muted: #737d89;
+  --faint: #a3abb5;
+  --line: #dee2e7;
+  --hairline: #eaedf0;
+  --accent: #1f4f8f;
+
+  --plus-bg: #dff2e5;
+  --plus-ink: #14663c;
+  --minus-bg: #fce1de;
+  --minus-ink: #a02b1e;
+  --zero-ink: #a3abb5;
+
+  --blue-bg: #d9e4f7;
+  --blue-ink: #1c3d78;
+  --gray-bg: #e3e6ea;
+  --gray-ink: #4a545f;
+
+  /* grid metrics - overridden per breakpoint and by the density toggle */
+  --row-pad: 1px;
+  --cell-pad: 3px;
+  --grid-size: 13px;
+  --input-size: 16px;   /* 16px on touch, or iOS zooms the page in on focus */
+  --input-w: 34px;
+  --input-h: 26px;
+  --set-w: 78px;
+  --set-size: 10px;
+  --note-w: 18px;
+  --idx-w: 22px;
+  --tiny-w: 16px;
 }
 
-.table > :not(caption) > * > * {
-  padding: 0.4rem 0.4rem;
+body.is-roomy {
+  --row-pad: 5px;
+  --cell-pad: 6px;
+  --input-h: 34px;
+  --set-size: 11.5px;
 }
 
-tbody > tr {
-  td {
-    text-align: center;
-    align-content: center;
-  }
-
-  .top-number {
-    border: 2px solid;
-    border-bottom: 0;
-    border-color: black;
-  }
-
-  .bottom-number {
-    border: 2px solid;
-    border-top: 0;
-    border-color: black;
-  }
-
-  .plus {
-    background-color: rgba(0, 255, 0, 0.5);
-  }
-
-  .minus {
-    background-color: rgba(255, 0, 0, 0.5);
-  }
-
-  .blue {
-    color: white;
-    background-color: rgba(0, 0, 255, 0.5);
-  }
-
-  .gray {
-    color: white;
-    background-color: rgba(128, 128, 128, 0.5);
-  }
-
-  :nth-child(2) {
-    /* background-color: red; */
-  }
-  :nth-child(3) {
-    /* background-color: green; */
-  }
-  :nth-child(4) {
-    /* background-color: blue; */
-    /* min-width: 47px; */
-  }
-
-  span[name="numbers1"],
-  span[name="numbers2"] {
-    white-space: nowrap;
-    font-size: 15px;
-  }
-
-  span[name="numbers1-poznamka"],
-  span[name="numbers2-poznamka"] {
-    position: absolute;
-    top: -10px;
-    font-size: 11px;
-    left: 50%;
-    transform: translateX(-50%);
-  }
+* {
+  box-sizing: border-box;
 }
 
-input::-webkit-outer-spin-button,
-input::-webkit-inner-spin-button {
-  /* display: none; <- Crashes Chrome on hover */
-  -webkit-appearance: none;
-  margin: 0; /* <-- Apparently some margin are still there even though it's hidden */
+html {
+  -webkit-text-size-adjust: 100%;
 }
 
-input[type="number"] {
-  -moz-appearance: textfield; /* Firefox */
+body {
+  margin: 0;
+  padding: 0 0 2rem;
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.35;
+  -webkit-tap-highlight-color: rgba(31, 79, 143, 0.15);
 }
 
-input {
-  border: 1px solid black;
-  /* border-radius: 5px; */
-  background-color: white;
-  color: black;
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
+.print-only {
+  display: none;
+}
+
+/* ------------------------------------------------------------------
+   Toolbar - stacked rows on a phone, a single row on a wide screen
+   ------------------------------------------------------------------ */
+
+.bar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 7px 8px;
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--line);
+}
+
+.bar__title {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.bar__group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.bar__group--actions {
+  flex-wrap: wrap;
+}
+
+.bar__meta {
+  display: none;
+  font-size: 11.5px;
+  color: var(--faint);
+  white-space: nowrap;
+}
+
+.field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.field__label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--faint);
+}
+
+#sessionName {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 9px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 16px;  /* 16px keeps iOS from zooming the page on focus */
+}
+
+#sessionName:focus-visible,
+.grid input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+/* ------------------------------------------------------------------
+   Buttons - sized for thumbs
+   ------------------------------------------------------------------ */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 34px;
+  padding: 5px 11px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.4;
+  white-space: nowrap;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.btn:hover {
+  background: #f5f7f9;
+  border-color: #c8cfd7;
+}
+
+.btn:active {
+  background: #e7ebef;
+}
+
+.btn--primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.btn--primary:hover {
+  background: #1a4478;
+  border-color: #1a4478;
+}
+
+.btn--icon {
+  min-width: 34px;
+  padding: 5px 8px;
+  font-size: 15px;
+}
+
+.btn--icon[aria-pressed="true"] {
+  background: #e6ecf5;
+  border-color: #b9c7dc;
+}
+
+.btn--danger:hover {
+  background: var(--minus-bg);
+  border-color: #e5b3ad;
+  color: var(--minus-ink);
+}
+
+.badge {
+  min-width: 17px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--hairline);
+  color: var(--muted);
+  font-size: 11px;
+  text-align: center;
+}
+
+/* ------------------------------------------------------------------
+   Sheet
+   ------------------------------------------------------------------ */
+
+.sheet {
+  margin: 8px 4px;
+  padding: 8px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  /* last resort on a very narrow phone: the grid scrolls inside the card
+     instead of pushing the whole page sideways */
+  overflow-x: auto;
+}
+
+.sheet__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 5px;
+  margin-bottom: 5px;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.sheet__name {
+  font-size: 12.5px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sheet__date {
+  flex: none;
+  font-size: 11px;
+  color: var(--faint);
+}
+
+/* ------------------------------------------------------------------
+   Grid
+   ------------------------------------------------------------------ */
+
+.grid {
+  margin: 0 auto;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--grid-size);
+  font-variant-numeric: tabular-nums;
+}
+
+.grid th {
+  padding: 0 var(--cell-pad) 4px;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--faint);
+  text-align: center;
+  border-bottom: 1px solid var(--line);
+}
+
+.grid td {
+  padding: var(--row-pad) var(--cell-pad);
+  text-align: center;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+/* a hairline every five rows keeps long lists countable */
+.grid tbody tr:nth-child(5n) td:not(.col-note) {
+  border-bottom: 1px solid var(--hairline);
+}
+
+/* Widths are pixel values on purpose: a percentage width inside an
+   auto-layout table would stretch the whole grid to the viewport. */
+.col-idx,
+td[name="length"] {
+  width: var(--idx-w);
+  color: var(--faint);
+  font-size: 10.5px;
+  text-align: right;
+}
+
+.grid input {
+  width: var(--input-w);
+  height: var(--input-h);
+  padding: 1px 2px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--input-size);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  /* the sticky toolbar must not cover the row that Enter scrolls to */
+  scroll-margin-top: 96px;
+  scroll-margin-bottom: 32px;
+}
+
+.grid input:hover {
+  border-color: #c3cad2;
+}
+
+td[name="tnumber"] {
+  width: var(--tiny-w);
+  color: var(--muted);
+}
+
+td[name="symbol"] {
+  width: var(--tiny-w);
+  font-weight: 650;
+  color: var(--zero-ink);
+}
+
+td[name="symbol"].plus {
+  background: var(--plus-bg);
+  color: var(--plus-ink);
+}
+
+td[name="symbol"].minus {
+  background: var(--minus-bg);
+  color: var(--minus-ink);
+}
+
+/* unique-number sets, shown on a single row - pulled in tight against the
+   numbers so the two mostly-empty columns do not open up a gap */
+td[name="numbers1-container"],
+td[name="numbers2-container"] {
+  width: var(--set-w);
+  color: var(--muted);
+}
+
+td[name="numbers1-container"] {
+  text-align: right;
+}
+
+td[name="numbers2-container"] {
+  text-align: left;
+}
+
+/* The gap before the note strip lives on the column *before* it, so that
+   numbersNote1 and numbersNote2 keep exactly the same width. */
+th.col-set--right,
+td[name="numbers2-container"] {
+  padding-right: calc(var(--cell-pad) + 7px);
+}
+
+span[name="numbers1"],
+span[name="numbers2"] {
+  white-space: nowrap;
+  font-size: var(--set-size);
+  letter-spacing: 0.01em;
+}
+
+span[name="numbers1-poznamka"],
+span[name="numbers2-poznamka"] {
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.col-note,
+td[name="numbersNote1"],
+td[name="numbersNote2"] {
+  width: var(--note-w);
+  font-weight: 650;
+  color: var(--faint);
+  /* transparent by default so the pair brackets never shift the layout */
+  border: 1.5px solid transparent;
+}
+
+td[name="numbersNote1"].has-value,
+td[name="numbersNote2"].has-value {
+  color: var(--ink);
+}
+
+.grid .top-number {
+  border-color: var(--ink);
+  border-bottom-color: transparent;
+}
+
+.grid .bottom-number {
+  border-color: var(--ink);
+  border-top-color: transparent;
+}
+
+.grid .blue {
+  background: var(--blue-bg);
+  color: var(--blue-ink);
+}
+
+.grid .gray {
+  background: var(--gray-bg);
+  color: var(--gray-ink);
+}
+
+/* shrink-wraps the set text so its label centres over the text, not the cell */
 .relative {
   position: relative;
+  display: inline-block;
 }
 
 .absolute {
   position: absolute;
+}
+
+.grid input::-webkit-outer-spin-button,
+.grid input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* ------------------------------------------------------------------
+   Series dialog - a bottom sheet on a phone, a centred card above that
+   ------------------------------------------------------------------ */
+
+.dlg {
+  width: 100%;
+  max-width: 100%;
+  margin: auto auto 0;
+  padding: 0;
+  border: 0;
+  border-radius: 14px 14px 0 0;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 -8px 40px -12px rgba(20, 24, 29, 0.45);
+}
+
+.dlg::backdrop {
+  background: rgba(20, 24, 29, 0.36);
+}
+
+.dlg__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 11px 12px;
+  border-bottom: 1px solid var(--hairline);
+  font-size: 14px;
+}
+
+.dlg__head-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sessions {
+  max-height: 62vh;
+  margin: 0;
+  padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
+  overflow-y: auto;
+  list-style: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.sessions__item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 8px;
+}
+
+.sessions__item:hover {
+  background: #f5f7f9;
+}
+
+.sessions__item.is-current {
+  background: #eef3fa;
+}
+
+.sessions__open {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 9px 8px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.sessions__name {
+  font-size: 14px;
+  font-weight: 550;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sessions__meta {
+  font-size: 11.5px;
+  color: var(--faint);
+}
+
+.sessions__empty {
+  padding: 22px 12px;
+  color: var(--faint);
+  font-size: 13px;
+  text-align: center;
+}
+
+/* ------------------------------------------------------------------
+   Toast
+   ------------------------------------------------------------------ */
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(18px + env(safe-area-inset-bottom));
+  z-index: 40;
+  max-width: calc(100vw - 32px);
+  padding: 8px 15px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 13px;
+  text-align: center;
+  box-shadow: 0 8px 24px -10px rgba(20, 24, 29, 0.6);
+  opacity: 0;
+  transform: translate(-50%, 8px);
+  transition: opacity 0.18s, transform 0.18s;
+  pointer-events: none;
+}
+
+.toast.is-visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.toast--warn {
+  background: #8a5a00;
+}
+
+.toast--error {
+  background: #932218;
+}
+
+/* ------------------------------------------------------------------
+   Tablet and up
+   ------------------------------------------------------------------ */
+
+@media (min-width: 700px) {
+  :root {
+    --cell-pad: 5px;
+    --grid-size: 12.5px;
+    --input-size: 12.5px;
+    --input-w: 32px;
+    --input-h: 20px;
+    --set-w: 96px;
+    --set-size: 11.5px;
+    --note-w: 20px;
+    --idx-w: 26px;
+    --tiny-w: 18px;
+  }
+
+  body.is-roomy {
+    --cell-pad: 8px;
+    --grid-size: 14px;
+    --input-size: 14px;
+    --input-h: 26px;
+  }
+
+  body {
+    padding-bottom: 3rem;
+  }
+
+  .bar {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+    padding: 8px 14px;
+  }
+
+  .bar__title {
+    position: static;
+    width: auto;
+    height: auto;
+    clip-path: none;
+    margin: 0;
+    font-size: 13px;
+    font-weight: 650;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .bar__meta {
+    display: inline;
+  }
+
+  .bar__group--session {
+    flex: 0 1 auto;
+  }
+
+  .bar__group--actions {
+    margin-left: auto;
+    flex-wrap: nowrap;
+  }
+
+  .field {
+    flex: 0 1 auto;
+  }
+
+  #sessionName {
+    flex: 0 0 auto;
+    width: 190px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 13px;
+  }
+
+  .btn {
+    min-height: 0;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 12.5px;
+  }
+
+  .btn--icon {
+    min-width: 0;
+    padding: 4px 8px;
+    font-size: 14px;
+  }
+
+  .sheet {
+    width: fit-content;
+    max-width: 100%;
+    margin: 14px auto;
+    padding: 10px 14px 12px;
+    border-radius: 10px;
+    box-shadow: 0 1px 2px rgba(20, 24, 29, 0.05), 0 8px 24px -18px rgba(20, 24, 29, 0.4);
+  }
+
+  .sheet__head {
+    gap: 16px;
+    padding-bottom: 6px;
+    margin-bottom: 6px;
+  }
+
+  span[name="numbers1-poznamka"],
+  span[name="numbers2-poznamka"] {
+    top: -11px;
+    font-size: 9.5px;
+  }
+
+  .dlg {
+    width: min(440px, calc(100vw - 32px));
+    margin: auto;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    box-shadow: 0 20px 50px -20px rgba(20, 24, 29, 0.45);
+  }
+
+  .sessions {
+    max-height: 60vh;
+  }
+
+  .sessions__name {
+    font-size: 13px;
+  }
+
+  .sessions__meta {
+    font-size: 11px;
+  }
+
+  .toast {
+    bottom: 22px;
+    padding: 7px 14px;
+    font-size: 12.5px;
+  }
+}
+
+/* ------------------------------------------------------------------
+   Print
+   ------------------------------------------------------------------ */
+
+@page {
+  size: A4 portrait;
+  margin: 10mm;
+}
+
+@media print {
+  body,
+  body.is-roomy {
+    --row-pad: 0.7mm;
+    --cell-pad: 2mm;
+    --grid-size: 9.5pt;
+    --input-size: 9.5pt;
+    --input-h: auto;
+    --set-w: 26mm;
+    --set-size: 8.5pt;
+    --note-w: 5.5mm;
+    --idx-w: 7mm;
+    --tiny-w: 5mm;
+    --hairline: #cfd4d9;
+    padding: 0;
+    background: #fff;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .bar,
+  .toast,
+  dialog {
+    display: none !important;
+  }
+
+  .sheet {
+    width: auto;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    overflow: visible;
+  }
+
+  .sheet__head {
+    padding-bottom: 2mm;
+    margin-bottom: 2mm;
+    border-bottom: 0.4pt solid #9aa2ab;
+  }
+
+  .sheet__name {
+    font-size: 11pt;
+  }
+
+  .sheet__date {
+    font-size: 8pt;
+    color: #444;
+  }
+
+  /* natural width, centred - a stretched grid is much harder to scan */
+  .grid {
+    margin: 0 auto;
+  }
+
+  .grid thead {
+    display: table-header-group;
+  }
+
+  .grid tr {
+    break-inside: avoid;
+  }
+
+  /* inputs are replaced by their plain-text mirror so the values always print */
+  .grid input {
+    display: none;
+  }
+
+  .print-only {
+    display: inline;
+  }
+
+  .grid .top-number,
+  .grid .bottom-number {
+    border-color: #000;
+  }
+
+  .grid .top-number {
+    border-bottom-color: transparent;
+  }
+
+  .grid .bottom-number {
+    border-top-color: transparent;
+  }
 }
