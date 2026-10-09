@@ -2,7 +2,8 @@
    Unikátne čísla - the numbers logic
 
    Pure functions, no DOM: index.js paints whatever computeSheet()
-   returns, and tests/logic.test.js checks it under Node.
+   returns, and tests/logic.test.js checks it under Node. The rules are
+   written out in prose in .claude/knowledge/domain.md.
    ================================================================== */
 
 (function (root) {

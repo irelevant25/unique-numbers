@@ -112,6 +112,9 @@ node --test                       # pravidlá výpočtu (logic.js)
 php tests/storage-test.php        # ukladanie; skúste aj: php -n tests/storage-test.php
 ```
 
+Kontroly v prehliadači (mobil, pípanie, tlač, snímky obrazovky) sú opísané v
+`.claude/skills/browser-check/SKILL.md`.
+
 ## Súbory
 
 | Súbor | Účel |
@@ -124,3 +127,4 @@ php tests/storage-test.php        # ukladanie; skúste aj: php -n tests/storage-
 | `style.css` | Štýly pre obrazovku (mobile first) a pre tlač. |
 | `tests/` | Testy pravidiel a ukladania. |
 | `data/` | Uložené série (mimo gitu). |
+| `CLAUDE.md`, `.claude/` | Pokyny, znalosti, skilly a agenti pre Claude Code. |

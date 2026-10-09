@@ -1,0 +1,11 @@
+{
+  "name": "unique-numbers-browser-check",
+  "private": true,
+  "description": "Headless-Chrome checks for the unique-numbers app. Not part of the app; install with npm install in this folder.",
+  "type": "module",
+  "dependencies": {
+    "@napi-rs/canvas": "^0.1.65",
+    "pdfjs-dist": "^4.10.38",
+    "puppeteer-core": "^24.0.0"
+  }
+}

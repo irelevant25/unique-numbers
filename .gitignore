@@ -1,0 +1,3 @@
+# dependencies of the browser checks in .claude/skills/browser-check/scripts
+node_modules/
+.claude/skills/browser-check/scripts/package-lock.json
