@@ -3,48 +3,63 @@
 
    Mobile first: the base rules target a phone, and the min-width
    block near the bottom widens things out for tablets and desktops.
+   The print block at the very end packs the sheet into narrow
+   newspaper columns, several hundred numbers to an A4 page.
    ================================================================== */
 
 :root {
   --canvas: #eceef1;
   --surface: #ffffff;
   --ink: #14181d;
-  --muted: #737d89;
-  --faint: #a3abb5;
-  --line: #dee2e7;
-  --hairline: #eaedf0;
+  --muted: #5f6a76;
+  --faint: #8a939e;
+  --line: #d5dae0;
+  --hairline: #e6e9ed;
   --accent: #1f4f8f;
 
   --plus-bg: #dff2e5;
   --plus-ink: #14663c;
   --minus-bg: #fce1de;
   --minus-ink: #a02b1e;
-  --zero-ink: #a3abb5;
+  --zero-ink: #8a939e;
 
   --blue-bg: #d9e4f7;
   --blue-ink: #1c3d78;
   --gray-bg: #e3e6ea;
   --gray-ink: #4a545f;
 
-  /* grid metrics - overridden per breakpoint and by the density toggle */
+  /* grid metrics - overridden per breakpoint, by "Väčšie písmo" and for print */
   --row-pad: 1px;
   --cell-pad: 3px;
-  --grid-size: 13px;
+  --grid-size: 14px;
+  --idx-size: 11px;
   --input-size: 16px;   /* 16px on touch, or iOS zooms the page in on focus */
-  --input-w: 34px;
-  --input-h: 26px;
+  --input-w: 36px;
+  --input-h: 28px;
   --set-w: 78px;
-  --set-size: 10px;
-  --note-w: 18px;
-  --idx-w: 22px;
-  --tiny-w: 16px;
+  --set-size: 11px;
+  --set-label: 9px;
+  --note-w: 19px;
+  --idx-w: 24px;
+  --tiny-w: 18px;
+  --bracket: 1.5px;
 }
 
-body.is-roomy {
-  --row-pad: 5px;
-  --cell-pad: 6px;
-  --input-h: 34px;
-  --set-size: 11.5px;
+body.is-big {
+  --row-pad: 3px;
+  --cell-pad: 3px;
+  --grid-size: 17px;
+  --idx-size: 13px;
+  --input-size: 20px;
+  --input-w: 44px;
+  --input-h: 38px;
+  --set-w: 62px;
+  --set-size: 13px;
+  --set-label: 10.5px;
+  --note-w: 24px;
+  --idx-w: 30px;
+  --tiny-w: 22px;
+  --bracket: 2px;
 }
 
 * {
@@ -61,7 +76,7 @@ body {
   background: var(--canvas);
   color: var(--ink);
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.35;
   -webkit-tap-highlight-color: rgba(31, 79, 143, 0.15);
 }
@@ -91,7 +106,7 @@ body {
   flex-direction: column;
   gap: 6px;
   padding: 7px 8px;
-  background: rgba(255, 255, 255, 0.94);
+  background: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--line);
 }
@@ -112,13 +127,16 @@ body {
   min-width: 0;
 }
 
-.bar__group--actions {
-  flex-wrap: wrap;
+/* four equal buttons that share one row, down to a 320px phone */
+.bar__group--actions .btn {
+  flex: 1 1 0;
+  min-width: 0;
+  padding-inline: 4px;
 }
 
 .bar__meta {
   display: none;
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--faint);
   white-space: nowrap;
 }
@@ -141,7 +159,7 @@ body {
 #sessionName {
   flex: 1;
   min-width: 0;
-  padding: 6px 9px;
+  padding: 7px 9px;
   border: 1px solid var(--line);
   border-radius: 7px;
   background: var(--surface);
@@ -151,7 +169,8 @@ body {
 }
 
 #sessionName:focus-visible,
-.grid input:focus-visible {
+.grid input:focus-visible,
+.stepper input:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: -1px;
 }
@@ -165,56 +184,39 @@ body {
   align-items: center;
   justify-content: center;
   gap: 5px;
-  min-height: 34px;
+  min-height: 38px;
   padding: 5px 11px;
   border: 1px solid var(--line);
   border-radius: 7px;
   background: var(--surface);
   color: var(--ink);
   font: inherit;
-  font-size: 13px;
-  line-height: 1.4;
+  font-size: 14px;
+  line-height: 1.3;
   white-space: nowrap;
   cursor: pointer;
   touch-action: manipulation;
-  transition: background 0.12s, border-color 0.12s;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
 }
 
 .btn:hover {
   background: #f5f7f9;
-  border-color: #c8cfd7;
+  border-color: #c3cad2;
 }
 
 .btn:active {
   background: #e7ebef;
 }
 
-.btn--primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
-}
-
-.btn--primary:hover {
-  background: #1a4478;
-  border-color: #1a4478;
-}
-
 .btn--icon {
-  min-width: 34px;
+  min-width: 38px;
   padding: 5px 8px;
-  font-size: 15px;
+  font-size: 18px;
 }
 
-.btn--icon[aria-pressed="true"] {
-  background: #e6ecf5;
-  border-color: #b9c7dc;
-}
-
-/* a toggle that is off reads as switched off, not merely unhighlighted */
-.btn--icon[data-action="sound"][aria-pressed="false"] {
-  color: var(--faint);
-  text-decoration: line-through;
+.btn--wide {
+  width: 100%;
+  white-space: normal;
 }
 
 .btn--danger:hover {
@@ -223,13 +225,40 @@ body {
   color: var(--minus-ink);
 }
 
+.btn--wide.btn--danger {
+  color: var(--minus-ink);
+}
+
+/* Saving happens on its own; the button mostly reports it, and a tap saves at once. */
+.btn--save {
+  flex: none;
+  min-width: 104px;
+}
+
+.btn--save[data-state="saving"] {
+  color: var(--muted);
+}
+
+.btn--save[data-state="saved"] {
+  border-color: #b5dcc2;
+  background: #f1faf4;
+  color: var(--plus-ink);
+}
+
+.btn--save[data-state="error"] {
+  border-color: #e5b3ad;
+  background: var(--minus-bg);
+  color: var(--minus-ink);
+  font-weight: 600;
+}
+
 .badge {
-  min-width: 17px;
+  min-width: 18px;
   padding: 0 5px;
   border-radius: 9px;
   background: var(--hairline);
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
   text-align: center;
 }
 
@@ -259,16 +288,22 @@ body {
 }
 
 .sheet__name {
-  font-size: 12.5px;
+  font-size: 13.5px;
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.sheet__date {
+.sheet__info {
+  display: flex;
   flex: none;
-  font-size: 11px;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.sheet__date {
+  font-size: 12px;
   color: var(--faint);
 }
 
@@ -286,7 +321,7 @@ body {
 
 .grid th {
   padding: 0 var(--cell-pad) 4px;
-  font-size: 9.5px;
+  font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -303,7 +338,7 @@ body {
 }
 
 /* a hairline every five rows keeps long lists countable */
-.grid tbody tr:nth-child(5n) td:not(.col-note) {
+.grid tbody tr:nth-child(5n) td:not([name^="numbersNote"]) {
   border-bottom: 1px solid var(--hairline);
 }
 
@@ -313,7 +348,7 @@ body {
 td[name="length"] {
   width: var(--idx-w);
   color: var(--faint);
-  font-size: 10.5px;
+  font-size: var(--idx-size);
   text-align: right;
 }
 
@@ -330,12 +365,19 @@ td[name="length"] {
   font-variant-numeric: tabular-nums;
   text-align: center;
   /* the sticky toolbar must not cover the row that Enter scrolls to */
-  scroll-margin-top: 96px;
+  scroll-margin-top: 104px;
   scroll-margin-bottom: 32px;
 }
 
 .grid input:hover {
-  border-color: #c3cad2;
+  border-color: #b9c1ca;
+}
+
+/* 37 and up: kept on screen so it can be fixed, but left out of every calculation */
+.grid input.is-invalid {
+  border-color: var(--minus-ink);
+  background: var(--minus-bg);
+  color: var(--minus-ink);
 }
 
 td[name="tnumber"] {
@@ -389,13 +431,23 @@ span[name="numbers2"] {
   letter-spacing: 0.01em;
 }
 
+/* with bigger text the six numbers wrap onto two lines instead of
+   pushing the grid wider than a phone */
+.is-big span[name="numbers1"],
+.is-big span[name="numbers2"] {
+  display: inline-block;
+  max-width: var(--set-w);
+  white-space: normal;
+  line-height: 1.2;
+}
+
 span[name="numbers1-poznamka"],
 span[name="numbers2-poznamka"] {
   position: absolute;
-  top: -10px;
+  top: calc(var(--set-label) * -1.15);
   left: 50%;
   transform: translateX(-50%);
-  font-size: 9px;
+  font-size: var(--set-label);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--faint);
@@ -408,7 +460,7 @@ td[name="numbersNote2"] {
   font-weight: 650;
   color: var(--faint);
   /* transparent by default so the pair brackets never shift the layout */
-  border: 1.5px solid transparent;
+  border: var(--bracket) solid transparent;
 }
 
 td[name="numbersNote1"].has-value,
@@ -446,19 +498,14 @@ td[name="numbersNote2"].has-value {
   position: absolute;
 }
 
-.grid input::-webkit-outer-spin-button,
-.grid input::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-
 /* ------------------------------------------------------------------
-   Series dialog - a bottom sheet on a phone, a centred card above that
+   Dialogs - a bottom sheet on a phone, a centred card above that
    ------------------------------------------------------------------ */
 
 .dlg {
   width: 100%;
   max-width: 100%;
+  max-height: 88vh;
   margin: auto auto 0;
   padding: 0;
   border: 0;
@@ -468,18 +515,24 @@ td[name="numbersNote2"].has-value {
   box-shadow: 0 -8px 40px -12px rgba(20, 24, 29, 0.45);
 }
 
+.dlg[open] {
+  display: flex;
+  flex-direction: column;
+}
+
 .dlg::backdrop {
   background: rgba(20, 24, 29, 0.36);
 }
 
 .dlg__head {
   display: flex;
+  flex: none;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 11px 12px;
+  padding: 10px 12px;
   border-bottom: 1px solid var(--hairline);
-  font-size: 14px;
+  font-size: 16px;
 }
 
 .dlg__head-actions {
@@ -517,8 +570,8 @@ td[name="numbersNote2"].has-value {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 1px;
-  padding: 9px 8px;
+  gap: 2px;
+  padding: 10px 8px;
   border: 0;
   background: none;
   color: inherit;
@@ -529,7 +582,7 @@ td[name="numbersNote2"].has-value {
 }
 
 .sessions__name {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 550;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -537,36 +590,171 @@ td[name="numbersNote2"].has-value {
 }
 
 .sessions__meta {
-  font-size: 11.5px;
-  color: var(--faint);
+  font-size: 12.5px;
+  color: var(--muted);
 }
 
 .sessions__empty {
   padding: 22px 12px;
-  color: var(--faint);
-  font-size: 13px;
+  color: var(--muted);
+  font-size: 14px;
   text-align: center;
 }
 
+/* Settings: big targets and plain words */
+
+.settings {
+  min-height: 0;  /* lets it scroll inside the flex column instead of growing the dialog */
+  overflow-y: auto;
+  padding: 4px 14px calc(14px + env(safe-area-inset-bottom));
+  -webkit-overflow-scrolling: touch;
+}
+
+.settings__group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 0 14px;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.settings__group:last-child {
+  border-bottom: 0;
+}
+
+.settings__title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.settings__note {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.settings__help {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.settings__help li + li {
+  margin-top: 4px;
+}
+
+/* the sound controls dim while the beep is switched off */
+.settings__sound.is-off .stepper,
+.settings__sound.is-off .choice {
+  opacity: 0.45;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 38px;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.check input {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.stepper {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+}
+
+.stepper__label {
+  flex: 1 1 120px;
+  font-size: 15px;
+}
+
+.stepper__controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.stepper input {
+  width: 64px;
+  height: 40px;
+  padding: 2px 4px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 17px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.stepper__unit {
+  min-width: 22px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.stepper__hint {
+  flex-basis: 100%;
+  font-size: 12.5px;
+  color: var(--muted);
+  text-align: right;
+}
+
+.btn--step {
+  width: 44px;
+  min-height: 40px;
+  padding: 0;
+  font-size: 22px;
+  line-height: 1;
+}
+
+/* "Tón" on its own line, the two options side by side below it */
+.choice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 20px;
+}
+
+.choice > .stepper__label {
+  flex: 0 0 100%;
+}
+
 /* ------------------------------------------------------------------
-   Toast
+   Toast - at the top, where a phone keyboard cannot hide it
    ------------------------------------------------------------------ */
 
 .toast {
   position: fixed;
   left: 50%;
-  bottom: calc(18px + env(safe-area-inset-bottom));
+  top: 10px;
   z-index: 40;
-  max-width: calc(100vw - 32px);
-  padding: 8px 15px;
-  border-radius: 999px;
+  max-width: calc(100vw - 24px);
+  padding: 10px 16px;
+  border-radius: 12px;
   background: var(--ink);
   color: #fff;
-  font-size: 13px;
+  font-size: 15px;
   text-align: center;
   box-shadow: 0 8px 24px -10px rgba(20, 24, 29, 0.6);
   opacity: 0;
-  transform: translate(-50%, 8px);
+  transform: translate(-50%, -8px);
   transition: opacity 0.18s, transform 0.18s;
   pointer-events: none;
 }
@@ -584,11 +772,26 @@ td[name="numbersNote2"].has-value {
   background: #932218;
 }
 
-/* On the narrowest phones the four action buttons are ~23px too wide for a
-   single row; a little less padding keeps them on one line. */
-@media (max-width: 340px) {
+/* the signal the beep is about - hard to miss even with the sound off */
+.toast--signal {
+  background: var(--blue-ink);
+  font-size: 17px;
+  font-weight: 650;
+  box-shadow: 0 0 0 3px #fff, 0 0 0 6px var(--blue-ink), 0 12px 30px -10px rgba(20, 24, 29, 0.7);
+}
+
+/* ------------------------------------------------------------------
+   Narrow phones
+   ------------------------------------------------------------------ */
+
+@media (max-width: 359px) {
   .bar__group--actions .btn {
-    padding: 5px 7px;
+    font-size: 13px;
+    padding-inline: 2px;
+  }
+
+  .btn--save {
+    min-width: 92px;
   }
 }
 
@@ -599,22 +802,33 @@ td[name="numbersNote2"].has-value {
 @media (min-width: 700px) {
   :root {
     --cell-pad: 5px;
-    --grid-size: 12.5px;
-    --input-size: 12.5px;
-    --input-w: 32px;
-    --input-h: 20px;
+    --grid-size: 13.5px;
+    --idx-size: 11px;
+    --input-size: 13.5px;
+    --input-w: 34px;
+    --input-h: 22px;
     --set-w: 96px;
-    --set-size: 11.5px;
-    --note-w: 20px;
-    --idx-w: 26px;
-    --tiny-w: 18px;
+    --set-size: 12px;
+    --set-label: 9.5px;
+    --note-w: 21px;
+    --idx-w: 28px;
+    --tiny-w: 19px;
   }
 
-  body.is-roomy {
-    --cell-pad: 8px;
-    --grid-size: 14px;
-    --input-size: 14px;
-    --input-h: 26px;
+  body.is-big {
+    --row-pad: 3px;
+    --cell-pad: 7px;
+    --grid-size: 17px;
+    --idx-size: 13px;
+    --input-size: 17px;
+    --input-w: 42px;
+    --input-h: 30px;
+    --set-w: 130px;
+    --set-size: 14px;
+    --set-label: 11px;
+    --note-w: 26px;
+    --idx-w: 34px;
+    --tiny-w: 24px;
   }
 
   body {
@@ -652,7 +866,11 @@ td[name="numbersNote2"].has-value {
 
   .bar__group--actions {
     margin-left: auto;
-    flex-wrap: nowrap;
+  }
+
+  .bar__group--actions .btn {
+    flex: none;
+    padding-inline: 11px;
   }
 
   .field {
@@ -661,23 +879,32 @@ td[name="numbersNote2"].has-value {
 
   #sessionName {
     flex: 0 0 auto;
-    width: 190px;
-    padding: 4px 8px;
+    width: 200px;
+    padding: 5px 8px;
     border-radius: 6px;
-    font-size: 13px;
+    font-size: 14px;
   }
 
   .btn {
-    min-height: 0;
-    padding: 4px 10px;
+    min-height: 32px;
+    padding: 4px 11px;
     border-radius: 6px;
-    font-size: 12.5px;
+    font-size: 13.5px;
   }
 
   .btn--icon {
-    min-width: 0;
+    min-width: 32px;
     padding: 4px 8px;
-    font-size: 14px;
+    font-size: 17px;
+  }
+
+  .btn--step {
+    width: 40px;
+    min-height: 36px;
+  }
+
+  .stepper input {
+    height: 36px;
   }
 
   .sheet {
@@ -695,14 +922,15 @@ td[name="numbersNote2"].has-value {
     margin-bottom: 6px;
   }
 
-  span[name="numbers1-poznamka"],
-  span[name="numbers2-poznamka"] {
-    top: -11px;
-    font-size: 9.5px;
+  .is-big span[name="numbers1"],
+  .is-big span[name="numbers2"] {
+    white-space: nowrap;
+    max-width: none;
   }
 
   .dlg {
-    width: min(440px, calc(100vw - 32px));
+    width: min(460px, calc(100vw - 32px));
+    max-height: 86vh;
     margin: auto;
     border: 1px solid var(--line);
     border-radius: 10px;
@@ -714,43 +942,59 @@ td[name="numbersNote2"].has-value {
   }
 
   .sessions__name {
-    font-size: 13px;
+    font-size: 14px;
   }
 
   .sessions__meta {
-    font-size: 11px;
+    font-size: 12px;
   }
 
   .toast {
-    bottom: 22px;
-    padding: 7px 14px;
-    font-size: 12.5px;
+    top: 14px;
+    padding: 8px 16px;
+    font-size: 14px;
+  }
+
+  .toast--signal {
+    font-size: 16px;
   }
 }
 
 /* ------------------------------------------------------------------
-   Print
+   Print - as many numbers per page as possible
+
+   The grid flows down narrow newspaper columns and on across pages,
+   each column with its own header row: roughly 600 numbers fit on one
+   A4 page. The old/new sets, two mostly empty columns on screen, are
+   printed once in the header instead.
    ------------------------------------------------------------------ */
 
 @page {
   size: A4 portrait;
-  margin: 10mm;
+  margin: 7mm;
+
+  @bottom-right {
+    content: counter(page) " / " counter(pages);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 6.5pt;
+    color: #6b7480;
+  }
 }
 
 @media print {
   body,
-  body.is-roomy {
-    --row-pad: 0.7mm;
-    --cell-pad: 2mm;
-    --grid-size: 9.5pt;
-    --input-size: 9.5pt;
+  body.is-big {
+    --row-pad: 0;
+    --cell-pad: 0.45mm;
+    --grid-size: 7pt;
+    --idx-size: 5.5pt;
+    --input-size: 7pt;
     --input-h: auto;
-    --set-w: 26mm;
-    --set-size: 8.5pt;
-    --note-w: 5.5mm;
-    --idx-w: 7mm;
-    --tiny-w: 5mm;
-    --hairline: #cfd4d9;
+    --note-w: 3.3mm;
+    --idx-w: 5mm;
+    --tiny-w: 3mm;
+    --bracket: 0.5pt;
+    --hairline: #c9cfd6;
     padding: 0;
     background: #fff;
     -webkit-print-color-adjust: exact;
@@ -771,34 +1015,74 @@ td[name="numbersNote2"].has-value {
     border-radius: 0;
     box-shadow: none;
     overflow: visible;
+    columns: auto 23mm;
+    column-gap: 2.5mm;
+    column-fill: auto;
+    column-rule: 0.3pt solid #d5dae0;
   }
 
   .sheet__head {
-    padding-bottom: 2mm;
-    margin-bottom: 2mm;
+    column-span: all;
+    align-items: baseline;
+    padding-bottom: 1.2mm;
+    margin-bottom: 1.5mm;
     border-bottom: 0.4pt solid #9aa2ab;
   }
 
   .sheet__name {
-    font-size: 11pt;
+    font-size: 10pt;
+  }
+
+  .sheet__info {
+    gap: 4mm;
+    font-size: 7.5pt;
+    color: #333;
   }
 
   .sheet__date {
-    font-size: 8pt;
+    font-size: 7.5pt;
     color: #444;
   }
 
-  /* natural width, centred - a stretched grid is much harder to scan */
+  .print-only {
+    display: inline;
+  }
+
   .grid {
-    margin: 0 auto;
+    margin: 0;
+    line-height: 1.12;
   }
 
   .grid thead {
     display: table-header-group;
   }
 
+  .grid th {
+    padding: 0 var(--cell-pad) 0.3mm;
+    font-size: 5.5pt;
+    letter-spacing: 0.04em;
+    color: #6b7480;
+    border-bottom: 0.4pt solid #9aa2ab;
+  }
+
   .grid tr {
     break-inside: avoid;
+  }
+
+  /* the sets print in the header; the trailing empty rows are only for typing */
+  .col-set,
+  td[name="numbers1-container"],
+  td[name="numbers2-container"],
+  .grid tr.is-tail {
+    display: none;
+  }
+
+  td[name="length"] {
+    color: #7b848f;
+  }
+
+  .grid tbody tr:nth-child(5n) td:not([name^="numbersNote"]) {
+    border-bottom: 0.3pt solid var(--hairline);
   }
 
   /* inputs are replaced by their plain-text mirror so the values always print */
@@ -806,8 +1090,12 @@ td[name="numbersNote2"].has-value {
     display: none;
   }
 
-  .print-only {
-    display: inline;
+  .col-num {
+    font-weight: 650;
+  }
+
+  td[name="tnumber"] {
+    color: #4a545f;
   }
 
   .grid .top-number,

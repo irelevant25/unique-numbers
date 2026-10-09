@@ -3,23 +3,26 @@
  * ------------------------------------------------------------------ */
 
 const boot = JSON.parse(document.getElementById('bootstrapData')?.textContent || '{}');
+const { computeSheet, PLUS, MINUS } = window.UniqueNumbers;
 
 const MIN_NUMBER = boot.min ?? 0;
 const MAX_NUMBER = boot.max ?? 36;
 const MAX_ROWS = boot.maxRows ?? 2000;
-const UNIQUE_COUNT = 6;
 const BATCH_SIZE = 25;
-const ALL_UNIQUE_NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+const AUTOSAVE_DELAY = 1000;
+const RETRY_DELAY = 10000;
 const DRAFT_KEY = 'unique-numbers:draft';
-const DENSITY_KEY = 'unique-numbers:density';
-const SOUND_KEY = 'unique-numbers:sound';
+const LAST_KEY = 'unique-numbers:last';
+const SETTINGS_KEY = 'unique-numbers:settings';
 const UNTITLED = 'Séria bez názvu';
+
+/** Column order of a grid row, so cells can be reached through tr.cells. */
+const COL = { oldSet: 0, index: 1, number: 2, t: 3, symbol: 4, newSet: 5, left: 6, right: 7 };
 
 const tbody = document.querySelector('tbody');
 
-const rows = () => document.querySelectorAll('tbody > tr');
-const gridInputs = () => document.querySelectorAll('tbody input');
 const $ = (selector) => document.querySelector(selector);
+const gridInputs = () => Array.from(tbody.querySelectorAll('input'));
 
 const formatDate = (value) => new Date(value).toLocaleString('sk-SK', {
     day: 'numeric', month: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit',
@@ -32,197 +35,159 @@ function getRandomInt(min, max) {
     return Math.round(Math.random() * (max - min) + min);
 }
 
+/** 1 číslo, 2 – 4 čísla, 0 or 5 and more čísel. */
+function countNumbers(count) {
+    const word = count === 1 ? 'číslo' : count >= 2 && count <= 4 ? 'čísla' : 'čísel';
+    return `${count} ${word}`;
+}
+
+function storageGet(key) {
+    try { return localStorage.getItem(key); } catch { return null; }
+}
+
+function storageSet(key, value) {
+    try {
+        if (value === null) localStorage.removeItem(key);
+        else localStorage.setItem(key, value);
+    } catch { /* storage disabled or full - these are conveniences only */ }
+}
+
 /* ------------------------------------------------------------------ *
- * Calculation
+ * Settings, remembered per browser
  * ------------------------------------------------------------------ */
 
-function previousUniqueNumbers(inputIndex) {
-    const tnumbers = document.querySelectorAll('[name="tnumber"]');
-    const uniqueNumbers = new Set();
+const SETTING_LIMITS = {
+    beepMs: { min: 100, max: 5000, step: 100 },
+    volume: { min: 10, max: 100, step: 10 },
+};
 
-    for (let i = inputIndex - 1; i >= 0; i--) {
-        if (uniqueNumbers.size === UNIQUE_COUNT) break;
-        const number = Number(tnumbers[i].textContent);
-        if (number === 0) continue;
-        uniqueNumbers.add(number);
+function loadSettings() {
+    const defaults = { sound: true, beepMs: 800, volume: 100, tone: 'soft', bigText: false };
+    let stored = {};
+    try { stored = JSON.parse(storageGet(SETTINGS_KEY) || '{}') ?? {}; } catch { /* ignore */ }
+
+    // the toggles that came before the settings dialog
+    if (!('sound' in stored) && storageGet('unique-numbers:sound') === 'off') stored.sound = false;
+    if (!('bigText' in stored) && storageGet('unique-numbers:density') === 'roomy') stored.bigText = true;
+
+    const settings = { ...defaults, ...stored };
+    for (const [key, { min, max }] of Object.entries(SETTING_LIMITS)) {
+        const value = Math.round(Number(settings[key]));
+        settings[key] = Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : defaults[key];
     }
+    if (settings.tone !== 'sharp') settings.tone = 'soft';
+    settings.sound = settings.sound !== false;
+    settings.bigText = settings.bigText === true;
 
-    if (uniqueNumbers.size < UNIQUE_COUNT) return null;
-    return Array.from(uniqueNumbers);
+    return settings;
 }
 
-function previousUniqueNumbersComplement(inputNumbers) {
-    if (!inputNumbers) return null;
-    return ALL_UNIQUE_NUMBERS.filter(x => !inputNumbers.includes(x));
+const settings = loadSettings();
+
+function saveSettings() {
+    storageSet(SETTINGS_KEY, JSON.stringify(settings));
 }
 
-function transformNumber(number) {
-    return Math.ceil(number / 3);
+/* ------------------------------------------------------------------ *
+ * Calculation and painting
+ * ------------------------------------------------------------------ */
+
+function isValidNumber(value) {
+    return /^\d{1,2}$/.test(value) && Number(value) >= MIN_NUMBER && Number(value) <= MAX_NUMBER;
 }
 
-/** Wipes everything derived from the inputs so a recalculation never inherits stale marks. */
-function clearDerivedState() {
-    rows().forEach(row => {
-        const symbol = row.querySelector('[name="symbol"]');
-        symbol.textContent = '';
-        symbol.classList.remove('plus', 'minus');
-
-        row.querySelectorAll('[name="numbersNote1"], [name="numbersNote2"]').forEach(note => {
-            note.textContent = '';
-            note.classList.remove('has-value', 'top-number', 'bottom-number', 'blue', 'gray');
-        });
-
-        row.querySelector('[name="numbers1"]').textContent = '';
-        row.querySelector('[name="numbers2"]').textContent = '';
-        row.querySelector('[name="numbers1-poznamka"]').textContent = '';
-        row.querySelector('[name="numbers2-poznamka"]').textContent = '';
+/** @returns {(number|null)[]} one entry per row, null for a blank or invalid one. */
+function rowValues() {
+    return Array.from(tbody.rows, tr => {
+        const value = tr.querySelector('input').value;
+        return isValidNumber(value) ? Number(value) : null;
     });
 }
 
+/** @returns {(number|null)[]} like rowValues(), with trailing blanks trimmed. */
+function collectNumbers() {
+    const numbers = rowValues();
+    while (numbers.length && numbers[numbers.length - 1] === null) numbers.pop();
+    return numbers;
+}
+
+function paintNote(cell, symbol, note) {
+    cell.textContent = symbol;
+    cell.className = [symbol && 'has-value', note.bracket && `${note.bracket}-number`, note.color]
+        .filter(Boolean).join(' ');
+}
+
+let setsRow = null;
+
+function paintSets(sets) {
+    if (setsRow) {
+        setsRow.cells[COL.oldSet].querySelectorAll('span').forEach(span => { span.textContent = ''; });
+        setsRow.cells[COL.newSet].querySelectorAll('span').forEach(span => { span.textContent = ''; });
+    }
+    setsRow = null;
+    $('#printSets').textContent = '';
+    if (!sets) return;
+
+    setsRow = tbody.rows[sets.row];
+    const [oldLabel, oldValues] = setsRow.cells[COL.oldSet].querySelectorAll('span');
+    const [newLabel, newValues] = setsRow.cells[COL.newSet].querySelectorAll('span');
+    oldLabel.textContent = 'staré';
+    oldValues.textContent = sets.old.join(', ');
+    newLabel.textContent = 'nové';
+    newValues.textContent = sets.fresh.join(', ');
+    $('#printSets').textContent = `Staré: ${sets.old.join(', ')} · Nové: ${sets.fresh.join(', ')}`;
+}
+
+/** Writes everything computeSheet() derived into the grid. */
+function paint(sheet) {
+    const trs = tbody.rows;
+    let lastFilled = -1;
+
+    for (let i = 0; i < trs.length; i++) {
+        const row = sheet.rows[i];
+        const cells = trs[i].cells;
+        cells[COL.t].textContent = row.t ?? '';
+        cells[COL.symbol].textContent = row.symbol;
+        cells[COL.symbol].className = row.symbol === PLUS ? 'plus' : row.symbol === MINUS ? 'minus' : '';
+        paintNote(cells[COL.left], row.symbol, row.left);
+        paintNote(cells[COL.right], row.symbol, row.right);
+        if (row.t !== null) lastFilled = i;
+    }
+
+    // the empty rows at the end are only there to type into - they do not print
+    for (let i = 0; i < trs.length; i++) trs[i].classList.toggle('is-tail', i > lastFilled);
+
+    paintSets(sheet.sets);
+    $('#printCount').textContent = countNumbers(sheet.rows.filter(row => row.t !== null).length);
+}
+
+let lastComputed = null;
+
 /**
- * @param {{silent?: boolean}} [options] silent skips the beep, for bulk renders
+ * Recomputes the sheet from the numbers in the grid. Cheap to call twice:
+ * nothing happens unless a number actually changed.
+ *
+ * @param {{silent?: boolean}} [options] silent skips the alert, for bulk renders
  *        (loading, generating, clearing) where the pairs are not news.
  */
-function recalculateTNumbers({ silent = false } = {}) {
-    clearDerivedState();
+function recalculate({ silent = false } = {}) {
+    const values = rowValues();
+    const key = values.join(','); // blanks included, so a new empty row repaints too
+    if (key === lastComputed) return;
+    lastComputed = key;
 
-    let renderedUniqueNumbers = false;
-    const allRows = rows();
-
-    allRows.forEach((row, index) => {
-        const numberCell = row.querySelector('input');
-        const tNumberCell = row.querySelector('[name="tnumber"]');
-        const symbolCell = row.querySelector('[name="symbol"]');
-        const numbersNote1 = row.querySelector('[name="numbersNote1"]');
-        const numbersNote2 = row.querySelector('[name="numbersNote2"]');
-        const number = Number(numberCell.value);
-        const tnumber = transformNumber(number);
-        tNumberCell.textContent = tnumber;
-        row.querySelector('[name="numberPrint"]').textContent = numberCell.value;
-
-        const uniqueNumbers = previousUniqueNumbers(index);
-        if (uniqueNumbers) {
-            const isIncludes = uniqueNumbers.includes(tnumber);
-            symbolCell.textContent = tnumber === 0 ? '0' : isIncludes ? '-' : '+';
-            numbersNote1.textContent = symbolCell.textContent;
-            numbersNote2.textContent = symbolCell.textContent;
-            numbersNote1.classList.add('has-value');
-            numbersNote2.classList.add('has-value');
-            if (symbolCell.textContent === '-') symbolCell.classList.add('minus');
-            else if (symbolCell.textContent === '+') symbolCell.classList.add('plus');
-        }
-
-        if (!renderedUniqueNumbers && (index === allRows.length - 1 || numberCell.value === '')) {
-            renderedUniqueNumbers = true;
-            const rowIndex = index === allRows.length - 1
-                ? index
-                : Number(row.querySelector('td[name="length"]').textContent) - 1;
-            const targetRow = allRows[rowIndex];
-            if (targetRow) {
-                targetRow.querySelector('[name="numbers1-poznamka"]').textContent = 'staré';
-                targetRow.querySelector('[name="numbers2-poznamka"]').textContent = 'nové';
-
-                const uniqueNumbers = previousUniqueNumbers(index + 1);
-                targetRow.querySelector('[name="numbers1"]').textContent =
-                    uniqueNumbers?.sort((a, b) => a - b).join(', ') ?? '';
-                targetRow.querySelector('[name="numbers2"]').textContent =
-                    previousUniqueNumbersComplement(uniqueNumbers)?.sort((a, b) => a - b).join(', ') ?? '';
-            }
-        }
-    });
-
-    const numbersNote1WithValueElements = document.querySelectorAll('td[name="numbersNote1"].has-value');
-    numbersNote1WithValueElements.forEach((element, index) => {
-        if (index === numbersNote1WithValueElements.length - 1 && index % 2 === 0) return;
-        if (index % 4 !== 0 && index % 4 !== 1) return;
-        if (index % 2 === 0) element.classList.add('top-number');
-        else element.classList.add('bottom-number');
-    });
-
-    const numbersNote2WithValueElements = document.querySelectorAll('td[name="numbersNote2"].has-value');
-    numbersNote2WithValueElements.forEach((element, index) => {
-        if (index === 0 || index === numbersNote2WithValueElements.length - 1 && index % 2 !== 0) return;
-        if (index % 4 !== 1 && index % 4 !== 2) return;
-        if (index % 2 === 0) element.classList.add('bottom-number');
-        else element.classList.add('top-number');
-    });
-
-    announceRepeats(generatePairing(), silent);
-    saveDraft();
-}
-
-function samePair(a, b) {
-    return a.textContent === b.textContent || a.textContent === '0' || b.textContent === '0';
-}
-
-/** @returns {{at: number, color: string}[]} the groups it coloured, in order. */
-function markPairs(elements, startIndex) {
-    const marked = [];
-
-    for (let i = startIndex; i < elements.length; i += 4) {
-        const [e1, e2, e3, e4, e5, e6, e7, e8] = elements.slice(i, i + 8);
-        // 1-2 => 5-6
-        if (!e1 || !e2 || !e5 || !e6) continue;
-        if (samePair(e1, e5) && samePair(e2, e6)) {
-            [e1, e2, e5, e6].forEach(element => element.classList.add('blue'));
-            marked.push({ at: i, color: 'blue' });
-        }
-        // 3-4 => 7-8
-        if (!e3 || !e4 || !e7 || !e8) continue;
-        if (samePair(e3, e7) && samePair(e4, e8)) {
-            [e3, e4, e7, e8].forEach(element => element.classList.add('gray'));
-            marked.push({ at: i + 2, color: 'gray' });
-        }
-    }
-
-    return marked;
-}
-
-/**
- * Groups chain: each one shares its last two cells with the next. Two in a row
- * of the same colour is therefore a single longer run of that colour - the
- * "second pair of the same colour" the beep announces.
- *
- * @returns {string[]} one id per repeat, stable while earlier rows do not change.
- */
-function sameColourRepeats(marked, column) {
-    const repeats = [];
-
-    for (let i = 1; i < marked.length; i++) {
-        if (marked[i].color === marked[i - 1].color) {
-            repeats.push(`${column}:${marked[i].color}:${marked[i].at}`);
-        }
-    }
-
-    return repeats;
-}
-
-/** @returns {string[]} ids of every same-colour repeat currently on the sheet. */
-function generatePairing() {
-    const leftElements = Array.from(document.querySelectorAll('[name="numbersNote1"]')).filter(x => x.textContent !== '');
-    const rightElements = Array.from(document.querySelectorAll('[name="numbersNote2"]')).filter(x => x.textContent !== '');
-
-    // if not enough elements in any of col => return
-    if (leftElements.length < UNIQUE_COUNT || rightElements.length < UNIQUE_COUNT) return [];
-
-    const left = markPairs(leftElements, 0);
-    // right col is shifted by one row (posunute o jeden riadok)
-    const right = markPairs(rightElements, 1);
-
-    return [...sameColourRepeats(left, 'L'), ...sameColourRepeats(right, 'R')];
+    const sheet = computeSheet(values);
+    paint(sheet);
+    announceRepeats(sheet.repeats, silent);
 }
 
 /* ------------------------------------------------------------------ *
  * Rows
  * ------------------------------------------------------------------ */
 
-function isValidNumber(value, minNumber, maxNumber) {
-    return !(value < minNumber || value > maxNumber || isNaN(value) || value.includes('.') || value.includes(',') || value === '');
-}
-
-function renderRow(initNumber) {
-    const index = rows().length;
-    const rowHtml = `
+function rowHtml(index, value) {
+    const text = value ?? '';
+    return `
         <tr>
             <td name="numbers1-container">
                 <div class="relative">
@@ -231,9 +196,8 @@ function renderRow(initNumber) {
                 </div>
             </td>
             <td name="length">${index + 1}.</td>
-            <td class="col-num"><input type="text" step="1" pattern="[0-9]+" inputmode="numeric" enterkeyhint="next"
-                aria-label="Číslo ${index + 1}" min="${MIN_NUMBER}" max="${MAX_NUMBER}"
-                value="${initNumber ?? ''}"><span name="numberPrint" class="print-only"></span></td>
+            <td class="col-num"><input type="text" pattern="[0-9]*" inputmode="numeric" enterkeyhint="next"
+                autocomplete="off" aria-label="Číslo ${index + 1}" value="${text}"><span name="numberPrint" class="print-only">${text}</span></td>
             <td name="tnumber"></td>
             <td name="symbol"></td>
             <td name="numbers2-container">
@@ -244,85 +208,113 @@ function renderRow(initNumber) {
             </td>
             <td name="numbersNote1"></td>
             <td name="numbersNote2"></td>
-        </tr>
-    `;
-    tbody.insertAdjacentHTML('beforeend', rowHtml);
+        </tr>`;
+}
 
-    const input = gridInputs()[index];
-    input.addEventListener('keyup', (event) => {
-        // 13 - enter
-        if (event.keyCode === 13) {
-            if (!isValidNumber(input.value, MIN_NUMBER, MAX_NUMBER)) return;
-            recalculateTNumbers();
-            let nextInput;
-            if (index === gridInputs().length - 1) nextInput = renderRow();
-            else nextInput = gridInputs()[index + 1];
-            nextInput.focus();
-            const inputs = gridInputs();
-            inputs[inputs.length - 5]?.scrollIntoView({ block: 'nearest' });
-        }
-    });
-    input.addEventListener('input', () => {
-        if (!isValidNumber(input.value, MIN_NUMBER, MAX_NUMBER)) input.value = '';
-        input.closest('tr').querySelector('[name="numberPrint"]').textContent = input.value;
-        saveDraft();
-    });
-
-    return input;
+/** Appends one empty row and returns its input. */
+function renderRow() {
+    tbody.insertAdjacentHTML('beforeend', rowHtml(tbody.rows.length, null));
+    return tbody.lastElementChild.querySelector('input');
 }
 
 /** Replaces every row with the given numbers, plus one empty row to type into. */
 function renderRows(numbers) {
-    tbody.replaceChildren();
-    numbers.forEach(number => renderRow(number ?? undefined));
-    // recalculate first: the unique-number sets belong on the last filled row,
-    // exactly where they land when the rows are typed in one at a time
-    recalculateTNumbers({ silent: true });
-    renderRow();
+    const safe = numbers.map(number => (Number.isInteger(number) ? number : null));
+    tbody.innerHTML = safe.map((number, index) => rowHtml(index, number)).join('') + rowHtml(safe.length, null);
+    lastComputed = null;
+    recalculate({ silent: true });
 }
 
-/** @returns {(number|null)[]} one entry per row, null for a blank one, trailing blanks trimmed. */
-function collectNumbers() {
-    const numbers = Array.from(gridInputs(), input => input.value === '' ? null : Number(input.value));
-    while (numbers.length && numbers[numbers.length - 1] === null) numbers.pop();
-    return numbers;
+function printMirror(input) {
+    return input.closest('td').querySelector('[name="numberPrint"]');
+}
+
+function setInputValue(input, value) {
+    input.value = value;
+    input.classList.toggle('is-invalid', value !== '' && !isValidNumber(value));
+    printMirror(input).textContent = value;
+}
+
+function onRowInput(input) {
+    const digits = input.value.replace(/\D+/g, '');
+    if (digits !== input.value) input.value = digits;
+    setInputValue(input, input.value);
+
+    // a spare empty row below the one being typed into, so the iPhone keypad's
+    // "next field" arrow always has somewhere to go
+    if (input.value !== '' && input.closest('tr') === tbody.lastElementChild) renderRow();
+
+    markDirty();
+}
+
+/** Enter (or "next" on a phone keypad): take the number and move to the row below. */
+function submitRow(input) {
+    if (input.value === '') return;
+    if (!isValidNumber(input.value)) {
+        toast(`Zadajte číslo od ${MIN_NUMBER} do ${MAX_NUMBER}.`, 'warn');
+        input.select();
+        return;
+    }
+    setInputValue(input, String(Number(input.value))); // "05" becomes "5"
+    recalculate();
+
+    const next = input.closest('tr').nextElementSibling?.querySelector('input') ?? renderRow();
+    next.focus();
+    const inputs = gridInputs();
+    inputs[inputs.length - 5]?.scrollIntoView({ block: 'nearest' });
+}
+
+/** Leaving a row (tap elsewhere, "Hotovo" on an iPhone) also takes its number. */
+function onRowChange(input) {
+    if (isValidNumber(input.value)) setInputValue(input, String(Number(input.value)));
+    recalculate();
 }
 
 /** Appends another batch of random numbers below whatever is already there. */
-function generateNumber() {
+function generateNumbers() {
     const existing = collectNumbers();
     const room = MAX_ROWS - existing.length;
     if (room <= 0) return toast(`Dosiahnutý limit ${MAX_ROWS} riadkov.`, 'warn');
+    if (!confirm(`Pridať ${Math.min(BATCH_SIZE, room)} náhodných čísel na koniec série?`)) return;
 
     const batch = Array.from({ length: Math.min(BATCH_SIZE, room) }, () => getRandomInt(MIN_NUMBER, MAX_NUMBER));
     renderRows([...existing, ...batch]);
+    markDirty();
+    closeDialogs();
     gridInputs()[existing.length]?.scrollIntoView({ block: 'center' });
     toast(`Pridaných ${batch.length} čísel.`);
 }
 
 /** Empties the sheet but stays in the current series. */
 function clearNumbers() {
-    if (collectNumbers().length === 0) return;
-    if (!confirm('Vyčistiť všetky čísla?')) return;
+    if (collectNumbers().length === 0) return toast('Séria je už prázdna.');
+    if (!confirm('Vymazať všetky čísla v tejto sérii?')) return;
 
     renderRows([]);
-    clearDraft();
-    toast('Vyčistené.');
+    markDirty();
+    closeDialogs();
+    toast('Čísla sú vymazané.');
 }
 
 /* ------------------------------------------------------------------ *
- * Series: saving and loading through api.php
+ * Series: saved automatically through api.php
  * ------------------------------------------------------------------ */
 
-const session = { id: boot.session?.id ?? null };
+const session = { id: boot.session?.id ?? null, updatedAt: boot.session?.updatedAt ?? null };
+const saving = { dirty: false, revision: 0, inFlight: null, timer: null, failed: false };
 
 async function api(action, { method = 'GET', params = {}, body } = {}) {
     const query = new URLSearchParams({ action, ...params });
-    const response = await fetch(`api.php?${query}`, {
-        method,
-        headers: body ? { 'Content-Type': 'application/json' } : undefined,
-        body: body ? JSON.stringify(body) : undefined,
-    });
+    let response;
+    try {
+        response = await fetch(`api.php?${query}`, {
+            method,
+            headers: body ? { 'Content-Type': 'application/json' } : undefined,
+            body: body ? JSON.stringify(body) : undefined,
+        });
+    } catch {
+        throw new Error('Server je nedostupný. Skontrolujte pripojenie na internet.');
+    }
 
     const data = await response.json().catch(() => ({ error: `Server odpovedal so stavom ${response.status}.` }));
     if (!response.ok || data.ok === false) throw new Error(data.error || 'Požiadavka zlyhala.');
@@ -330,32 +322,132 @@ async function api(action, { method = 'GET', params = {}, body } = {}) {
     return data;
 }
 
-async function saveSession() {
-    const numbers = collectNumbers();
-    if (numbers.length === 0) return toast('Nie je čo uložiť.', 'warn');
-    if (numbers.length > MAX_ROWS) return toast(`Príliš veľa riadkov (max ${MAX_ROWS}).`, 'warn');
+/** Something changed: keep a local copy right away and save to the server shortly. */
+function markDirty() {
+    saving.dirty = true;
+    saving.revision++;
+    saveDraft();
+    renderSaveState();
+    clearTimeout(saving.timer);
+    saving.timer = setTimeout(() => saveNow(), AUTOSAVE_DELAY);
+}
 
-    try {
-        const data = await api('save', {
-            method: 'POST',
-            body: { id: session.id, name: $('#sessionName').value, numbers },
-        });
-        applySession(data.session, { rerender: false });
-        renderSessionList(data.sessions);
-        clearDraft();
-        toast('Uložené.');
-    } catch (error) {
-        toast(error.message, 'error');
+/**
+ * Saves the series now unless there is nothing new to save.
+ *
+ * @returns {Promise<boolean>} false when the save failed (it is retried later).
+ */
+async function saveNow({ announce = false } = {}) {
+    clearTimeout(saving.timer);
+    // one request at a time: two parallel saves of a new series would create it twice
+    while (saving.inFlight) await saving.inFlight;
+    if (!saving.dirty) {
+        if (announce) toast(session.id ? 'Uložené.' : 'Nie je čo uložiť.');
+        return true;
     }
+
+    const numbers = collectNumbers();
+    if (numbers.length === 0 && !session.id) {
+        // an untouched new series is not worth a file of its own
+        saving.dirty = false;
+        clearDraft();
+        renderSaveState();
+        if (announce) toast('Nie je čo uložiť.');
+        return true;
+    }
+
+    const revision = saving.revision;
+    saving.inFlight = api('save', {
+        method: 'POST',
+        body: { id: session.id, name: $('#sessionName').value, numbers },
+    }).then(data => {
+        adoptSession(data.session);
+        renderSessionList(data.sessions);
+        saving.failed = false;
+        if (saving.revision === revision) {
+            saving.dirty = false;
+            clearDraft();
+        }
+        if (announce) toast('Uložené.');
+        return true;
+    }).catch(error => {
+        // say it once; the button keeps showing it while the retries run
+        if (!saving.failed || announce) toast(`Neuložené: ${error.message}`, 'error');
+        saving.failed = true;
+        clearTimeout(saving.timer);
+        saving.timer = setTimeout(() => saveNow(), RETRY_DELAY);
+        return false;
+    }).finally(() => {
+        saving.inFlight = null;
+        renderSaveState();
+    });
+
+    return saving.inFlight;
+}
+
+/**
+ * Called before the sheet is replaced by another series. True when it is safe
+ * to go on: saved, or the person agreed to drop the unsaved changes.
+ */
+async function leaveCurrentSeries() {
+    if (await saveNow()) return true;
+    return confirm('Posledné zmeny sa nepodarilo uložiť. Ak budete pokračovať, stratia sa. Pokračovať?');
+}
+
+function renderSaveState() {
+    const button = $('#saveState');
+    let state = 'saved';
+    if (saving.inFlight || (saving.dirty && !saving.failed)) state = 'saving';
+    else if (saving.failed) state = 'error';
+    else if (!session.id) state = 'new';
+
+    const labels = { new: 'Uložiť', saving: 'Ukladám…', saved: '✓ Uložené', error: '⚠ Neuložené' };
+    button.dataset.state = state;
+    button.textContent = labels[state];
+    button.title = state === 'error'
+        ? 'Nepodarilo sa uložiť. Ťuknite pre nový pokus.'
+        : 'Séria sa ukladá automaticky po každom čísle.';
+    $('#sessionMeta').textContent = state === 'saved' && session.updatedAt
+        ? `uložené ${formatDate(session.updatedAt)}`
+        : state === 'new' ? 'neuložené' : '';
+}
+
+/** Takes over what the server saved, without disturbing what is being typed. */
+function adoptSession(data) {
+    session.id = data.id;
+    session.updatedAt = data.updatedAt;
+    const name = $('#sessionName');
+    // an empty name was filled in by the server - show it unless the field is being edited
+    if (name.value.trim() === '' && document.activeElement !== name) {
+        name.value = data.name;
+        $('#printName').textContent = data.name;
+    }
+    document.title = `Unikátne čísla · ${data.name}`;
+    history.replaceState(null, '', `?s=${data.id}`);
+    storageSet(LAST_KEY, data.id);
+    highlightCurrentSession();
+}
+
+/** Shows a series loaded from the server. */
+function showSession(data) {
+    adoptSession(data);
+    $('#sessionName').value = data.name;
+    $('#printName').textContent = data.name;
+    saving.dirty = false;
+    saving.failed = false;
+    renderRows(data.numbers ?? []);
+    renderSaveState();
 }
 
 async function openSession(id) {
+    if (!(await leaveCurrentSeries())) return;
+
     try {
         const data = await api('load', { params: { id } });
-        applySession(data.session);
         clearDraft();
-        $('#sessionsDialog').close();
-        toast(`Načítaná séria „${data.session.name}“.`);
+        showSession(data.session);
+        closeDialogs();
+        toast(`Otvorená séria „${data.session.name}“.`);
     } catch (error) {
         toast(error.message, 'error');
     }
@@ -364,36 +456,49 @@ async function openSession(id) {
 async function deleteSession(id, name) {
     if (!confirm(`Vymazať sériu „${name}“? Túto akciu nie je možné vrátiť späť.`)) return;
 
+    if (session.id === id) {
+        // a save still on its way would bring the series straight back
+        clearTimeout(saving.timer);
+        while (saving.inFlight) await saving.inFlight;
+    }
+
     try {
         const data = await api('delete', { method: 'POST', body: { id } });
-        if (session.id === id) session.id = null;
         renderSessionList(data.sessions);
+        if (storageGet(LAST_KEY) === id) storageSet(LAST_KEY, null);
+        // the series on screen is gone - start a fresh one rather than resurrect it on the next save
+        if (session.id === id) startNewSession();
         toast('Vymazané.');
     } catch (error) {
         toast(error.message, 'error');
+        if (saving.dirty) saving.timer = setTimeout(() => saveNow(), AUTOSAVE_DELAY);
     }
 }
 
-function applySession(data, { rerender = true } = {}) {
-    session.id = data.id;
-    $('#sessionName').value = data.name;
-    $('#printName').textContent = data.name;
-    $('#sessionMeta').textContent = formatDate(data.updatedAt);
-    history.replaceState(null, '', `?s=${data.id}`);
-    if (rerender) renderRows(data.numbers ?? []);
+async function newSession() {
+    if (!(await leaveCurrentSeries())) return;
+    startNewSession();
+    toast('Nová séria.');
 }
 
-function newSession() {
+function startNewSession() {
     const name = defaultName();
     session.id = null;
+    session.updatedAt = null;
+    saving.dirty = false;
+    saving.failed = false;
+    clearTimeout(saving.timer);
     $('#sessionName').value = name;
     $('#printName').textContent = name;
-    $('#sessionMeta').textContent = 'neuložené';
+    document.title = 'Unikátne čísla';
     history.replaceState(null, '', location.pathname);
+    storageSet(LAST_KEY, null);
     clearDraft();
     renderRows([]);
-    $('#sessionsDialog').close();
-    toast('Nová séria.');
+    renderSaveState();
+    highlightCurrentSession();
+    closeDialogs();
+    gridInputs()[0]?.focus();
 }
 
 function renderSessionList(sessions) {
@@ -411,7 +516,8 @@ function renderSessionList(sessions) {
 
     sessions.forEach(item => {
         const li = document.createElement('li');
-        li.className = 'sessions__item' + (item.id === session.id ? ' is-current' : '');
+        li.className = 'sessions__item';
+        li.dataset.id = item.id;
 
         const open = document.createElement('button');
         open.type = 'button';
@@ -424,7 +530,7 @@ function renderSessionList(sessions) {
 
         const meta = document.createElement('span');
         meta.className = 'sessions__meta';
-        meta.textContent = `${item.filled ?? item.rows} čísel · ${formatDate(item.updatedAt)}`;
+        meta.textContent = `${countNumbers(item.filled ?? item.rows)} · ${formatDate(item.updatedAt)}`;
 
         const remove = document.createElement('button');
         remove.type = 'button';
@@ -438,36 +544,36 @@ function renderSessionList(sessions) {
         li.append(open, remove);
         list.append(li);
     });
+
+    highlightCurrentSession();
+}
+
+/** Marks the series on screen in the list - it changes without the list being redrawn. */
+function highlightCurrentSession() {
+    document.querySelectorAll('.sessions__item').forEach(li => {
+        li.classList.toggle('is-current', li.dataset.id === session.id);
+    });
 }
 
 /* ------------------------------------------------------------------ *
- * Local draft, so a reload never loses unsaved work
+ * Local draft: unsaved changes survive a reload or a lost connection
  * ------------------------------------------------------------------ */
 
-let draftTimer;
-
 function saveDraft() {
-    clearTimeout(draftTimer);
-    draftTimer = setTimeout(() => {
-        try {
-            const numbers = collectNumbers();
-            if (numbers.length === 0) return clearDraft();
-            localStorage.setItem(DRAFT_KEY, JSON.stringify({
-                id: session.id,
-                name: $('#sessionName').value,
-                numbers,
-            }));
-        } catch { /* storage disabled or full - drafts are a convenience only */ }
-    }, 400);
+    storageSet(DRAFT_KEY, JSON.stringify({
+        id: session.id,
+        name: $('#sessionName').value,
+        numbers: collectNumbers(),
+    }));
 }
 
 function clearDraft() {
-    try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
+    storageSet(DRAFT_KEY, null);
 }
 
 function readDraft() {
     try {
-        const draft = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null');
+        const draft = JSON.parse(storageGet(DRAFT_KEY) || 'null');
         return Array.isArray(draft?.numbers) ? draft : null;
     } catch {
         return null;
@@ -475,60 +581,171 @@ function readDraft() {
 }
 
 /* ------------------------------------------------------------------ *
- * Sound: a beep when a second pair of the same colour is marked
+ * Alert: a beep when a second pair of the same colour is marked
  * ------------------------------------------------------------------ */
 
-let soundOn = true;
 let audioContext = null;
+let currentBeep = null;
+let idleTimer;
 /** Repeats already announced, so an existing one never beeps twice. */
 let knownRepeats = new Set();
 
-function beep({ frequency = 880, seconds = 0.16 } = {}) {
-    if (!soundOn) return;
-
+function audio() {
     const Ctor = window.AudioContext || window.webkitAudioContext;
-    if (!Ctor) return;
+    if (!Ctor) return null;
 
+    if (!audioContext) {
+        // on an iPhone, Web Audio is silenced by the ringer switch unless it asks for playback
+        try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch { /* ignore */ }
+        audioContext = new Ctor();
+    }
+    clearTimeout(idleTimer);
+    // browsers keep the context suspended until a gesture; typing a number is one
+    if (audioContext.state !== 'running') audioContext.resume().catch(() => {});
+
+    return audioContext;
+}
+
+/** Between beeps the phone's audio goes back to other apps, so music is not held paused. */
+function idleAudio() {
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => {
+        if (!currentBeep && audioContext?.state === 'running') audioContext.suspend().catch(() => {});
+    }, 500);
+}
+
+function stopBeep() {
+    if (!currentBeep) return;
+    const { oscillator, gain, context } = currentBeep;
+    currentBeep = null;
     try {
-        audioContext ??= new Ctor();
-        // browsers keep the context suspended until a gesture; Enter is one
-        if (audioContext.state === 'suspended') audioContext.resume();
+        gain.gain.cancelScheduledValues(context.currentTime);
+        gain.gain.setTargetAtTime(0, context.currentTime, 0.01);
+        oscillator.stop(context.currentTime + 0.05);
+    } catch { /* already stopped */ }
+}
 
-        const now = audioContext.currentTime;
-        const oscillator = audioContext.createOscillator();
-        const gain = audioContext.createGain();
+/** A steady tone for the whole length, with short fades so it does not click. */
+function beep({ ms = settings.beepMs, volume = settings.volume, tone = settings.tone } = {}) {
+    try {
+        const context = audio();
+        if (!context) return;
+        stopBeep();
 
-        oscillator.type = 'sine';
-        oscillator.frequency.value = frequency;
+        const now = context.currentTime;
+        const seconds = ms / 1000;
+        // a square wave sounds much louder at the same level; its overshoot needs a little headroom
+        const peak = Math.max(0.001, (volume / 100) * (tone === 'sharp' ? 0.8 : 1));
+        const attack = 0.01;
+        const release = Math.min(0.06, seconds / 4);
 
-        // ramp in and out, otherwise the tone starts and ends with a click
+        const oscillator = context.createOscillator();
+        const gain = context.createGain();
+        oscillator.type = tone === 'sharp' ? 'square' : 'sine';
+        oscillator.frequency.value = 1500;
+
         gain.gain.setValueAtTime(0.0001, now);
-        gain.gain.exponentialRampToValueAtTime(0.22, now + 0.012);
+        gain.gain.exponentialRampToValueAtTime(peak, now + attack);
+        gain.gain.setValueAtTime(peak, now + seconds - release);
         gain.gain.exponentialRampToValueAtTime(0.0001, now + seconds);
 
-        oscillator.connect(gain).connect(audioContext.destination);
+        oscillator.connect(gain).connect(context.destination);
         oscillator.start(now);
-        oscillator.stop(now + seconds);
+        oscillator.stop(now + seconds + 0.02);
+
+        const beepRef = { oscillator, gain, context };
+        currentBeep = beepRef;
+        oscillator.onended = () => {
+            if (currentBeep === beepRef) currentBeep = null;
+            oscillator.disconnect();
+            gain.disconnect();
+            idleAudio();
+        };
     } catch { /* no audio available - the sheet still works */ }
 }
 
-/** Beeps once when repeats appear that were not on the sheet before. */
+/** Alerts once when repeats appear that were not on the sheet before. */
 function announceRepeats(repeats, silent) {
-    const current = new Set(repeats);
     const isNew = repeats.some(id => !knownRepeats.has(id));
-    knownRepeats = current;
+    knownRepeats = new Set(repeats);
+    if (!isNew || silent) return;
 
-    if (isNew && !silent) beep();
-}
-
-function toggleSound(force) {
-    soundOn = force ?? !soundOn;
-    $('[data-action="sound"]').setAttribute('aria-pressed', String(soundOn));
-    try { localStorage.setItem(SOUND_KEY, soundOn ? 'on' : 'off'); } catch { /* ignore */ }
+    if (settings.sound) beep();
+    toast('Pozor: druhá dvojica rovnakej farby za sebou.', 'signal');
 }
 
 /* ------------------------------------------------------------------ *
- * Chrome: toast, printing, density
+ * Settings dialog
+ * ------------------------------------------------------------------ */
+
+let previewTimer;
+
+/** Lets the change be heard right away, but not once per rapid tap. */
+function previewBeep() {
+    audio(); // wake the audio inside the tap - an iPhone refuses it a moment later
+    clearTimeout(previewTimer);
+    previewTimer = setTimeout(() => beep(), 250);
+}
+
+function renderSettings() {
+    $('#soundOn').checked = settings.sound;
+    $('#beepMs').value = settings.beepMs;
+    $('#beepSeconds').textContent = `${(settings.beepMs / 1000).toLocaleString('sk-SK')} s`;
+    $('#volume').value = settings.volume;
+    document.querySelectorAll('input[name="tone"]').forEach(radio => { radio.checked = radio.value === settings.tone; });
+    $('#bigText').checked = settings.bigText;
+    document.querySelector('.settings__sound').classList.toggle('is-off', !settings.sound);
+    document.body.classList.toggle('is-big', settings.bigText);
+}
+
+function setNumberSetting(key, value) {
+    const { min, max } = SETTING_LIMITS[key];
+    const number = Math.round(Number(value));
+    settings[key] = Number.isFinite(number) ? Math.min(max, Math.max(min, number)) : settings[key];
+    saveSettings();
+    renderSettings();
+}
+
+function bindSettings() {
+    $('#soundOn').addEventListener('change', (event) => {
+        settings.sound = event.target.checked;
+        saveSettings();
+        renderSettings();
+        if (settings.sound) previewBeep();
+    });
+
+    document.querySelectorAll('[data-step]').forEach(button => {
+        button.addEventListener('click', () => {
+            const key = button.dataset.setting;
+            setNumberSetting(key, settings[key] + Number(button.dataset.step) * SETTING_LIMITS[key].step);
+            if (settings.sound) previewBeep();
+        });
+    });
+
+    ['beepMs', 'volume'].forEach(key => {
+        $(`#${key}`).addEventListener('change', (event) => {
+            setNumberSetting(key, event.target.value);
+            if (settings.sound) previewBeep();
+        });
+    });
+
+    document.querySelectorAll('input[name="tone"]').forEach(radio => {
+        radio.addEventListener('change', () => {
+            settings.tone = radio.value;
+            saveSettings();
+            if (settings.sound) previewBeep();
+        });
+    });
+
+    $('#bigText').addEventListener('change', (event) => {
+        settings.bigText = event.target.checked;
+        saveSettings();
+        renderSettings();
+    });
+}
+
+/* ------------------------------------------------------------------ *
+ * Chrome: toast, dialogs, printing
  * ------------------------------------------------------------------ */
 
 let toastTimer;
@@ -537,38 +754,33 @@ function toast(message, kind = 'ok') {
     const element = $('#toast');
     element.textContent = message;
     element.className = `toast toast--${kind} is-visible`;
+    // the top of what is actually visible, even with a phone keyboard open
+    element.style.top = `${(window.visualViewport?.offsetTop ?? 0) + 10}px`;
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => element.classList.remove('is-visible'), 2600);
+    toastTimer = setTimeout(() => element.classList.remove('is-visible'), kind === 'error' ? 6000 : 3500);
 }
 
+function closeDialogs() {
+    document.querySelectorAll('dialog[open]').forEach(dialog => dialog.close());
+}
+
+/** Brings the plain-text copies the print uses up to date, including a number typed but not yet entered. */
 function syncPrintMirrors() {
-    rows().forEach(row => {
-        row.querySelector('[name="numberPrint"]').textContent = row.querySelector('input').value;
-    });
+    gridInputs().forEach(input => { printMirror(input).textContent = input.value; });
     $('#printName').textContent = $('#sessionName').value.trim() || UNTITLED;
-}
-
-function toggleDensity(force) {
-    const roomy = force ?? !document.body.classList.contains('is-roomy');
-    document.body.classList.toggle('is-roomy', roomy);
-    $('[data-action="density"]').setAttribute('aria-pressed', String(roomy));
-    try { localStorage.setItem(DENSITY_KEY, roomy ? 'roomy' : 'compact'); } catch { /* ignore */ }
+    recalculate({ silent: true });
 }
 
 const actions = {
-    generate: generateNumber,
-    clear: clearNumbers,
-    save: saveSession,
-    open: () => $('#sessionsDialog').showModal(),
-    'close-dialog': () => $('#sessionsDialog').close(),
+    save: () => saveNow({ announce: true }),
     'new-session': newSession,
+    open: () => $('#sessionsDialog').showModal(),
     print: () => { syncPrintMirrors(); window.print(); },
-    density: () => toggleDensity(),
-    sound: () => {
-        toggleSound();
-        toast(soundOn ? 'Zvuk zapnutý.' : 'Zvuk vypnutý.');
-        if (soundOn) beep();
-    },
+    settings: () => { renderSettings(); $('#settingsDialog').showModal(); },
+    'close-dialog': closeDialogs,
+    'test-sound': () => beep(),
+    generate: generateNumbers,
+    clear: clearNumbers,
 };
 
 /* ------------------------------------------------------------------ *
@@ -580,47 +792,131 @@ document.addEventListener('click', (event) => {
     if (action && actions[action]) actions[action]();
 });
 
+// a tap on the dimmed backdrop, outside the dialog's box, closes it
+document.querySelectorAll('dialog').forEach(dialog => {
+    dialog.addEventListener('click', (event) => {
+        if (event.target !== dialog) return;
+        const box = dialog.getBoundingClientRect();
+        const inside = event.clientX >= box.left && event.clientX <= box.right
+            && event.clientY >= box.top && event.clientY <= box.bottom;
+        if (!inside) dialog.close();
+    });
+});
+
 document.addEventListener('keydown', (event) => {
     if ((event.ctrlKey || event.metaKey) && event.key === 's') {
         event.preventDefault();
-        saveSession();
+        saveNow({ announce: true });
     }
 });
 
-document.addEventListener('input', (event) => {
-    if (event.target.id === 'sessionName') {
-        $('#printName').textContent = event.target.value.trim() || UNTITLED;
-        saveDraft();
-    }
+$('#sessionName').addEventListener('input', (event) => {
+    $('#printName').textContent = event.target.value.trim() || UNTITLED;
+    markDirty();
+});
+
+tbody.addEventListener('input', (event) => {
+    if (event.target instanceof HTMLInputElement) onRowInput(event.target);
+});
+
+tbody.addEventListener('change', (event) => {
+    if (event.target instanceof HTMLInputElement) onRowChange(event.target);
+});
+
+// typing over a number replaces it, the way a spreadsheet cell does
+tbody.addEventListener('focusin', (event) => {
+    const input = event.target;
+    if (!(input instanceof HTMLInputElement)) return;
+    input.select();
+    // a click would otherwise collapse the selection again on mouseup
+    input.addEventListener('mouseup', (e) => e.preventDefault(), { once: true });
+});
+
+const isEnter = (event) => event.key === 'Enter' || event.keyCode === 13;
+let enterHandled = false;
+
+tbody.addEventListener('keydown', (event) => {
+    if (!isEnter(event) || !(event.target instanceof HTMLInputElement)) return;
+    event.preventDefault();
+    enterHandled = true;
+    submitRow(event.target);
+});
+
+tbody.addEventListener('keyup', (event) => {
+    if (!isEnter(event)) return;
+    // some phone keyboards only report Enter on keyup
+    if (!enterHandled && event.target instanceof HTMLInputElement) submitRow(event.target);
+    enterHandled = false;
 });
 
 window.addEventListener('beforeprint', syncPrintMirrors);
+window.addEventListener('online', () => { if (saving.dirty) saveNow(); });
 
-let storedDensity = null;
-let storedSound = null;
-try {
-    storedDensity = localStorage.getItem(DENSITY_KEY);
-    storedSound = localStorage.getItem(SOUND_KEY);
-} catch { /* ignore */ }
-toggleDensity(storedDensity === 'roomy');
-toggleSound(storedSound !== 'off');
+// the first touch or key press unlocks audio, so the first beep is not lost
+const unlockAudio = () => {
+    if (!settings.sound) return;
+    audio();
+    idleAudio();
+};
+document.addEventListener('pointerdown', unlockAudio, { once: true, capture: true });
+document.addEventListener('keydown', unlockAudio, { once: true, capture: true });
 
+bindSettings();
+renderSettings();
 renderSessionList(boot.sessions ?? []);
 
-if (boot.session) {
-    applySession(boot.session);
-} else {
-    const draft = readDraft();
-    if (draft) {
-        const name = draft.name?.trim() || defaultName();
-        session.id = draft.id ?? null;
-        $('#sessionName').value = name;
-        $('#printName').textContent = name;
-        renderRows(draft.numbers);
-        toast('Obnovený neuložený koncept.');
-    } else {
-        renderRow();
-    }
+/** Unsaved changes from last time: put them back on the sheet and save them. */
+function restoreDraft(draft) {
+    const name = draft.name?.trim() || defaultName();
+    session.id = draft.id ?? null;
+    $('#sessionName').value = name;
+    $('#printName').textContent = name;
+    renderRows(draft.numbers);
+    markDirty();
 }
 
-if (boot.missing) toast('Táto séria už neexistuje.', 'warn');
+/** Unsaved changes of a series other than the one being opened: save them quietly. */
+function rescueDraft(draft) {
+    const raw = storageGet(DRAFT_KEY);
+    if (!draft.id && draft.numbers.length === 0) return clearDraft();
+
+    api('save', { method: 'POST', body: { id: draft.id, name: draft.name, numbers: draft.numbers } })
+        .then(data => {
+            renderSessionList(data.sessions);
+            // saved - unless something newer was typed meanwhile, the draft has done its job
+            // (left in place, a draft without an id would become one more series on every reload)
+            if (storageGet(DRAFT_KEY) === raw) clearDraft();
+        })
+        .catch(() => { /* kept: it is tried again the next time the page opens */ });
+}
+
+(function start() {
+    const draft = readDraft();
+    const lastId = storageGet(LAST_KEY);
+
+    if (boot.session) {
+        if (draft?.id === boot.session.id) {
+            restoreDraft(draft);
+        } else {
+            if (draft) rescueDraft(draft);
+            showSession(boot.session);
+        }
+    } else if (draft) {
+        restoreDraft(draft);
+    } else if (!boot.missing && lastId && (boot.sessions ?? []).some(item => item.id === lastId)) {
+        // reopen the series from last time, as an app would - with no row to type into until it
+        // is there, or a number typed on a slow connection would vanish when it arrives
+        renderSaveState();
+        api('load', { params: { id: lastId } })
+            .then(data => showSession(data.session))
+            .catch(() => {
+                storageSet(LAST_KEY, null);
+                renderRows([]);
+            });
+    } else {
+        renderRows([]);
+        renderSaveState();
+    }
+
+    if (boot.missing) toast('Táto séria už neexistuje.', 'warn');
+})();

@@ -2,6 +2,12 @@
 
 declare(strict_types=1);
 
+// Default series names and dates are Slovak local time. A host without a
+// configured timezone would otherwise fall back to UTC, an hour or two off.
+if (ini_get('date.timezone') === '' || ini_get('date.timezone') === false) {
+    date_default_timezone_set('Europe/Bratislava');
+}
+
 /**
  * Flat-file storage for saved number series.
  *
@@ -11,7 +17,8 @@ declare(strict_types=1);
  */
 final class Storage
 {
-    public const MAX_SESSIONS = 200;
+    /** Every series with a number in it is saved automatically, so this fills up with use. */
+    public const MAX_SESSIONS = 1000;
     public const MAX_ROWS     = 2000;
     public const MAX_NAME_LEN = 80;
     public const MIN_NUMBER   = 0;
@@ -37,7 +44,8 @@ final class Storage
             $sessions[] = $session;
         }
 
-        usort($sessions, static fn(array $a, array $b) => strcmp((string) $b['updatedAt'], (string) $a['updatedAt']));
+        // compare instants, not strings: summer and winter time carry different offsets
+        usort($sessions, static fn(array $a, array $b) => (strtotime((string) $b['updatedAt']) ?: 0) <=> (strtotime((string) $a['updatedAt']) ?: 0));
 
         return $sessions;
     }
@@ -159,7 +167,10 @@ final class Storage
             $name = date(self::NAME_DATE_FORMAT);
         }
 
-        return mb_substr($name, 0, self::MAX_NAME_LEN);
+        // cut by characters, not bytes; PCRE is always there, ext-mbstring is not
+        preg_match('/^.{0,' . self::MAX_NAME_LEN . '}/us', $name, $match);
+
+        return $match[0] ?? '';
     }
 
     private static function newId(): string

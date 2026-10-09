@@ -24,6 +24,10 @@ function fail(string $message, int $status = 400): never
 /** @return array<string, mixed> */
 function body(): array
 {
+    // a plain HTML form from another site cannot send this, so it cannot save or delete here
+    $type = strtolower((string) ($_SERVER['CONTENT_TYPE'] ?? ''));
+    if (!str_starts_with($type, 'application/json')) fail('Požiadavka musí byť vo formáte JSON.', 415);
+
     $raw = file_get_contents('php://input') ?: '';
     if (trim($raw) === '') return [];
 
